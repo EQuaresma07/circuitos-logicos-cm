@@ -50,6 +50,7 @@ export function propagate(components, wires, clockTime) {
   // 2. Propaga em ordem topológica
   for (const id of order) {
     const comp = compMap.get(id);
+    if (!comp) continue; // guard: componente pode ter sido deletado
     wires.forEach(w => {
       if (w.to.owner.id === id) {
         w.to.value = w.from.value;

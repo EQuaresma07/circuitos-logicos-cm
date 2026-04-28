@@ -112,23 +112,28 @@ export default function App() {
     }
   }, [components, svgPoint]);
 
-  // ── Wiring ──
-  const handlePinMouseDown = useCallback((pinId) => {
-    setWiringFrom(pinId);
-  }, []);
-
-  const handlePinMouseUp = useCallback((pinId) => {
-    if (!wiringFrom || wiringFrom === pinId) {
+  // ── Wiring por clique simples ──
+  const handlePinClick = useCallback((pinId) => {
+    if (!wiringFrom) {
+      // Primeiro clique: define pino de origem
+      setWiringFrom(pinId);
+      return;
+    }
+    if (wiringFrom === pinId) {
+      // Clicou no mesmo pino: cancela
       setWiringFrom(null);
       return;
     }
+    // Segundo clique: tenta criar fio
     const fromPin = findPin(components, wiringFrom);
     const toPin = findPin(components, pinId);
     if (fromPin && toPin && fromPin.direction !== toPin.direction) {
       const src = fromPin.direction === 'output' ? fromPin : toPin;
       const dst = fromPin.direction === 'input' ? fromPin : toPin;
+      // Impede destino com mais de uma entrada conectada
+      const alreadyConnected = wires.some(w => w.to.id === dst.id);
       const exists = wires.some(w => w.from.id === src.id && w.to.id === dst.id);
-      if (!exists) {
+      if (!exists && !alreadyConnected) {
         setWires(prev => [...prev, new Wire(uid(), src, dst)]);
       }
     }
@@ -208,8 +213,7 @@ export default function App() {
           onMouseUp={handleMouseUp}
           onClick={handleCanvasClick}
           onCompMouseDown={handleCompMouseDown}
-          onPinMouseDown={handlePinMouseDown}
-          onPinMouseUp={handlePinMouseUp}
+          onPinClick={handlePinClick}
           onToggle={toggleInput}
           onDrop={handleDrop}
           svgRef={svgRef}

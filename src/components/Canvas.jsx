@@ -31,7 +31,7 @@ export function getPinPos(comp, pin) {
 }
 
 // ── Renderizador de componente ──
-function CompNode({ comp, selected, onMouseDown, onPinMouseDown, onPinMouseUp, onToggle }) {
+function CompNode({ comp, selected, onMouseDown, onPinClick, onToggle }) {
   const isInput = comp instanceof InputSwitch;
   const isOutput = comp instanceof OutputProbe;
   const isClock = comp instanceof Clock;
@@ -60,7 +60,6 @@ function CompNode({ comp, selected, onMouseDown, onPinMouseDown, onPinMouseUp, o
         const pos = getPinPos(comp, pin);
         return (
           <g key={pin.id}>
-            {/* Stub line */}
             <line
               x1={pos.x}
               y1={pos.y}
@@ -72,13 +71,20 @@ function CompNode({ comp, selected, onMouseDown, onPinMouseDown, onPinMouseUp, o
             <circle
               cx={pos.x}
               cy={pos.y}
+              r={PIN_R + 3}
+              fill="transparent"
+              style={{ cursor: 'crosshair' }}
+              onClick={(e) => { e.stopPropagation(); onPinClick(pin.id); }}
+            />
+            <circle
+              cx={pos.x}
+              cy={pos.y}
               r={PIN_R}
               fill={pin.value ? '#0ea5e9' : '#fff'}
               stroke="#1f2937"
               strokeWidth="1.5"
               style={{ cursor: 'crosshair', transition: 'fill .12s' }}
-              onMouseDown={(e) => { e.stopPropagation(); onPinMouseDown(pin.id); }}
-              onMouseUp={(e) => { e.stopPropagation(); onPinMouseUp(pin.id); }}
+              onClick={(e) => { e.stopPropagation(); onPinClick(pin.id); }}
             />
           </g>
         );
@@ -100,13 +106,20 @@ function CompNode({ comp, selected, onMouseDown, onPinMouseDown, onPinMouseUp, o
             <circle
               cx={pos.x}
               cy={pos.y}
+              r={PIN_R + 3}
+              fill="transparent"
+              style={{ cursor: 'crosshair' }}
+              onClick={(e) => { e.stopPropagation(); onPinClick(pin.id); }}
+            />
+            <circle
+              cx={pos.x}
+              cy={pos.y}
               r={PIN_R}
               fill={pin.value ? '#0ea5e9' : '#fff'}
               stroke="#1f2937"
               strokeWidth="1.5"
               style={{ cursor: 'crosshair', transition: 'fill .12s' }}
-              onMouseDown={(e) => { e.stopPropagation(); onPinMouseDown(pin.id); }}
-              onMouseUp={(e) => { e.stopPropagation(); onPinMouseUp(pin.id); }}
+              onClick={(e) => { e.stopPropagation(); onPinClick(pin.id); }}
             />
           </g>
         );
@@ -191,7 +204,7 @@ function InputBody({ comp, selected, onToggle }) {
         fill="#fff"
         stroke="#1f2937"
         strokeWidth="1.2"
-        style={{ transition: 'cx .15s', pointerEvents: 'none' }}
+        style={{ pointerEvents: 'none' }}
       />
       <text
         x={comp.x + 78}
@@ -344,8 +357,7 @@ export default function Canvas({
   onMouseUp,
   onClick,
   onCompMouseDown,
-  onPinMouseDown,
-  onPinMouseUp,
+  onPinClick,
   onToggle,
   onDrop,
   svgRef,
@@ -360,7 +372,6 @@ export default function Canvas({
     const type = e.dataTransfer.getData('application/x-component-type')
               || e.dataTransfer.getData('text/plain');
     if (!type) return;
-    // Converter coordenadas de tela para SVG
     const svg = svgRef.current;
     if (!svg) return;
     const pt = svg.createSVGPoint();
@@ -409,6 +420,7 @@ export default function Canvas({
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
         onClick={onClick}
+        style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
       >
         <defs>
           <pattern id="grid-pattern" width="20" height="20" patternUnits="userSpaceOnUse">
@@ -431,8 +443,7 @@ export default function Canvas({
             comp={c}
             selected={c.id === selectedId}
             onMouseDown={onCompMouseDown}
-            onPinMouseDown={onPinMouseDown}
-            onPinMouseUp={onPinMouseUp}
+            onPinClick={onPinClick}
             onToggle={onToggle}
           />
         ))}
