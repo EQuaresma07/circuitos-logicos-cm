@@ -1,193 +1,177 @@
 // ════════════════════════════════════════════════════════════
-//  Símbolos SVG das portas lógicas (estilo IEEE/ANSI)
-//  Cada função desenha o corpo da porta dentro de um viewBox
-//  fornecido. Usado tanto na sidebar quanto no canvas.
+//  Símbolos SVG das portas lógicas — estilo Logic.ly / IEEE
+//  Exports idênticos ao original: canvas não é afetado.
 // ════════════════════════════════════════════════════════════
 
 import React from 'react';
 
-// Helpers: cores recebidas como props para reutilização
-const stroke = '#1f2937';
-const fill = '#fafafa';
+const S = '#374151'; // stroke
+const F = '#ffffff'; // fill
 
-// Cada componente recebe { width, height, color? }
-// Desenha em viewBox 80x40 e escala via SVG
-
-export function ANDSymbol({ width = 80, height = 40, color = stroke, fillColor = fill }) {
+// ── AND ──
+export function ANDSymbol({ width = 70, height = 44, color = S, fillColor = F }) {
   return (
-    <svg width={width} height={height} viewBox="0 0 80 40" style={{ overflow: 'visible' }}>
+    <svg width={width} height={height} viewBox="0 0 70 44">
+      <line x1="6" y1="14" x2="18" y2="14" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="6" y1="30" x2="18" y2="30" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="50" y1="22" x2="64" y2="22" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
       <path
-        d="M 5 5 L 35 5 A 20 20 0 0 1 35 35 L 5 35 Z"
-        fill={fillColor}
-        stroke={color}
-        strokeWidth="2"
-        strokeLinejoin="round"
+        d="M 18 8 L 36 8 A 14 14 0 0 1 36 36 L 18 36 Z"
+        fill={fillColor} stroke={color} strokeWidth="1.8" strokeLinejoin="round"
       />
     </svg>
   );
 }
 
-export function ORSymbol({ width = 80, height = 40, color = stroke, fillColor = fill }) {
+// ── OR ──
+export function ORSymbol({ width = 70, height = 44, color = S, fillColor = F }) {
   return (
-    <svg width={width} height={height} viewBox="0 0 80 40" style={{ overflow: 'visible' }}>
+    <svg width={width} height={height} viewBox="0 0 70 44">
+      <line x1="6" y1="15" x2="19" y2="15" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="6" y1="29" x2="19" y2="29" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="52" y1="22" x2="64" y2="22" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
       <path
-        d="M 5 5 Q 25 20 5 35 Q 35 35 55 20 Q 35 5 5 5 Z"
-        fill={fillColor}
-        stroke={color}
-        strokeWidth="2"
-        strokeLinejoin="round"
+        d="M 16 8 Q 26 22 16 36 Q 34 36 50 22 Q 34 8 16 8 Z"
+        fill={fillColor} stroke={color} strokeWidth="1.8" strokeLinejoin="round"
       />
     </svg>
   );
 }
 
-export function NOTSymbol({ width = 80, height = 40, color = stroke, fillColor = fill }) {
+// ── NOT ──
+export function NOTSymbol({ width = 70, height = 44, color = S, fillColor = F }) {
   return (
-    <svg width={width} height={height} viewBox="0 0 80 40" style={{ overflow: 'visible' }}>
+    <svg width={width} height={height} viewBox="0 0 70 44">
+      <line x1="6" y1="22" x2="16" y2="22" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="57" y1="22" x2="64" y2="22" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
       <path
-        d="M 5 5 L 5 35 L 45 20 Z"
-        fill={fillColor}
-        stroke={color}
-        strokeWidth="2"
-        strokeLinejoin="round"
+        d="M 16 7 L 16 37 L 49 22 Z"
+        fill={fillColor} stroke={color} strokeWidth="1.8" strokeLinejoin="round"
       />
-      <circle cx="50" cy="20" r="4" fill={fillColor} stroke={color} strokeWidth="2" />
+      <circle cx="53" cy="22" r="4" fill={fillColor} stroke={color} strokeWidth="1.8" />
     </svg>
   );
 }
 
-export function NANDSymbol({ width = 80, height = 40, color = stroke, fillColor = fill }) {
+// ── NAND ──
+export function NANDSymbol({ width = 70, height = 44, color = S, fillColor = F }) {
   return (
-    <svg width={width} height={height} viewBox="0 0 80 40" style={{ overflow: 'visible' }}>
+    <svg width={width} height={height} viewBox="0 0 70 44">
+      <line x1="6" y1="14" x2="18" y2="14" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="6" y1="30" x2="18" y2="30" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="55" y1="22" x2="64" y2="22" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
       <path
-        d="M 5 5 L 35 5 A 20 20 0 0 1 35 35 L 5 35 Z"
-        fill={fillColor}
-        stroke={color}
-        strokeWidth="2"
-        strokeLinejoin="round"
+        d="M 18 8 L 36 8 A 14 14 0 0 1 36 36 L 18 36 Z"
+        fill={fillColor} stroke={color} strokeWidth="1.8" strokeLinejoin="round"
       />
-      <circle cx="60" cy="20" r="4" fill={fillColor} stroke={color} strokeWidth="2" />
+      <circle cx="51" cy="22" r="4" fill={fillColor} stroke={color} strokeWidth="1.8" />
     </svg>
   );
 }
 
-export function NORSymbol({ width = 80, height = 40, color = stroke, fillColor = fill }) {
+// ── NOR ──
+export function NORSymbol({ width = 70, height = 44, color = S, fillColor = F }) {
   return (
-    <svg width={width} height={height} viewBox="0 0 80 40" style={{ overflow: 'visible' }}>
+    <svg width={width} height={height} viewBox="0 0 70 44">
+      <line x1="6" y1="15" x2="19" y2="15" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="6" y1="29" x2="19" y2="29" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="55" y1="22" x2="64" y2="22" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
       <path
-        d="M 5 5 Q 25 20 5 35 Q 35 35 55 20 Q 35 5 5 5 Z"
-        fill={fillColor}
-        stroke={color}
-        strokeWidth="2"
-        strokeLinejoin="round"
+        d="M 16 8 Q 26 22 16 36 Q 34 36 50 22 Q 34 8 16 8 Z"
+        fill={fillColor} stroke={color} strokeWidth="1.8" strokeLinejoin="round"
       />
-      <circle cx="60" cy="20" r="4" fill={fillColor} stroke={color} strokeWidth="2" />
+      <circle cx="54" cy="22" r="4" fill={fillColor} stroke={color} strokeWidth="1.8" />
     </svg>
   );
 }
 
-export function XORSymbol({ width = 80, height = 40, color = stroke, fillColor = fill }) {
+// ── XOR ──
+export function XORSymbol({ width = 70, height = 44, color = S, fillColor = F }) {
   return (
-    <svg width={width} height={height} viewBox="0 0 80 40" style={{ overflow: 'visible' }}>
+    <svg width={width} height={height} viewBox="0 0 70 44">
+      <line x1="6" y1="15" x2="20" y2="15" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="6" y1="29" x2="20" y2="29" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="52" y1="22" x2="64" y2="22" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M 13 8 Q 23 22 13 36" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
       <path
-        d="M 0 5 Q 20 20 0 35"
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
-      />
-      <path
-        d="M 8 5 Q 28 20 8 35 Q 38 35 58 20 Q 38 5 8 5 Z"
-        fill={fillColor}
-        stroke={color}
-        strokeWidth="2"
-        strokeLinejoin="round"
+        d="M 18 8 Q 28 22 18 36 Q 36 36 52 22 Q 36 8 18 8 Z"
+        fill={fillColor} stroke={color} strokeWidth="1.8" strokeLinejoin="round"
       />
     </svg>
   );
 }
 
-export function XNORSymbol({ width = 80, height = 40, color = stroke, fillColor = fill }) {
+// ── XNOR ──
+export function XNORSymbol({ width = 70, height = 44, color = S, fillColor = F }) {
   return (
-    <svg width={width} height={height} viewBox="0 0 80 40" style={{ overflow: 'visible' }}>
+    <svg width={width} height={height} viewBox="0 0 70 44">
+      <line x1="6" y1="15" x2="20" y2="15" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="6" y1="29" x2="20" y2="29" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="55" y1="22" x2="64" y2="22" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M 13 8 Q 23 22 13 36" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
       <path
-        d="M 0 5 Q 20 20 0 35"
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
+        d="M 18 8 Q 28 22 18 36 Q 36 36 50 22 Q 36 8 18 8 Z"
+        fill={fillColor} stroke={color} strokeWidth="1.8" strokeLinejoin="round"
       />
-      <path
-        d="M 8 5 Q 28 20 8 35 Q 38 35 58 20 Q 38 5 8 5 Z"
-        fill={fillColor}
-        stroke={color}
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-      <circle cx="63" cy="20" r="4" fill={fillColor} stroke={color} strokeWidth="2" />
+      <circle cx="54" cy="22" r="4" fill={fillColor} stroke={color} strokeWidth="1.8" />
     </svg>
   );
 }
 
-// ── Símbolos de I/O ──
+// ════════════════════════════════════════════════════════════
+//  I/O Symbols — estilo Logic.ly
+// ════════════════════════════════════════════════════════════
 
-export function SwitchSymbol({ width = 60, height = 40, on = false, color = stroke, fillColor = fill }) {
+export function SwitchSymbol({ width = 64, height = 44, on = false, color = S, fillColor = F }) {
   return (
-    <svg width={width} height={height} viewBox="0 0 60 40">
-      <circle cx="15" cy="20" r="6" fill={fillColor} stroke={color} strokeWidth="2" />
-      <circle cx="45" cy="20" r="6" fill={fillColor} stroke={color} strokeWidth="2" />
+    <svg width={width} height={height} viewBox="0 0 64 44">
+      <line x1="4" y1="22" x2="14" y2="22" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="50" y1="22" x2="60" y2="22" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="14" cy="22" r="3" fill={fillColor} stroke={color} strokeWidth="1.5" />
+      <circle cx="50" cy="22" r="3" fill={fillColor} stroke={color} strokeWidth="1.5" />
       <line
-        x1="15"
-        y1="20"
-        x2={on ? 45 : 38}
-        y2={on ? 20 : 8}
-        stroke={color}
-        strokeWidth="2"
+        x1="14" y1="22"
+        x2={on ? 50 : 44} y2={on ? 22 : 13}
+        stroke={color} strokeWidth="2" strokeLinecap="round"
       />
+      <circle cx="14" cy="22" r="2" fill={color} />
     </svg>
   );
 }
 
-export function LampSymbol({ width = 60, height = 60, on = false, color = stroke, fillColor = fill }) {
+export function LampSymbol({ width = 52, height = 58, on = false, color = S, fillColor = F }) {
   return (
-    <svg width={width} height={height} viewBox="0 0 60 60">
+    <svg width={width} height={height} viewBox="0 0 52 58">
+      <line x1="4" y1="20" x2="12" y2="20" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="12" cy="20" r="2.5" fill={fillColor} stroke={color} strokeWidth="1.5" />
       <circle
-        cx="30"
-        cy="25"
-        r="15"
+        cx="26" cy="20" r="14"
         fill={on ? '#fde047' : fillColor}
-        stroke={color}
-        strokeWidth="2"
+        stroke={color} strokeWidth="1.8"
       />
-      {on && (
-        <>
-          <line x1="30" y1="3" x2="30" y2="8" stroke="#facc15" strokeWidth="2" strokeLinecap="round" />
-          <line x1="50" y1="13" x2="46" y2="16" stroke="#facc15" strokeWidth="2" strokeLinecap="round" />
-          <line x1="14" y1="16" x2="10" y2="13" stroke="#facc15" strokeWidth="2" strokeLinecap="round" />
-        </>
-      )}
-      <line x1="22" y1="40" x2="22" y2="48" stroke={color} strokeWidth="2" />
-      <line x1="38" y1="40" x2="38" y2="48" stroke={color} strokeWidth="2" />
-      <line x1="22" y1="44" x2="38" y2="44" stroke={color} strokeWidth="2" />
-      <line x1="22" y1="48" x2="38" y2="48" stroke={color} strokeWidth="2" />
-      <path d="M 25 50 L 35 50 L 33 55 L 27 55 Z" fill={color} stroke={color} strokeWidth="1" />
+      <line x1="20" y1="14" x2="32" y2="26" stroke={color} strokeWidth="1.4" strokeLinecap="round" opacity="0.7" />
+      <line x1="32" y1="14" x2="20" y2="26" stroke={color} strokeWidth="1.4" strokeLinecap="round" opacity="0.7" />
+      <rect x="19" y="34" width="14" height="4" rx="1" fill={fillColor} stroke={color} strokeWidth="1.5" />
+      <rect x="19" y="38" width="14" height="4" rx="1" fill={fillColor} stroke={color} strokeWidth="1.5" />
     </svg>
   );
 }
 
-export function ClockSymbol({ width = 60, height = 40, color = stroke, fillColor = fill }) {
+export function ClockSymbol({ width = 64, height = 44, color = S, fillColor = F }) {
   return (
-    <svg width={width} height={height} viewBox="0 0 60 40">
-      <rect x="5" y="5" width="50" height="30" fill={fillColor} stroke={color} strokeWidth="2" rx="2" />
+    <svg width={width} height={height} viewBox="0 0 64 44">
+      <line x1="4" y1="22" x2="12" y2="22" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="52" y1="22" x2="60" y2="22" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <rect x="12" y="8" width="40" height="28" rx="2" fill={fillColor} stroke={color} strokeWidth="1.8" />
       <polyline
-        points="10,28 15,28 15,15 25,15 25,28 35,28 35,15 45,15 45,28 50,28"
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
+        points="16,30 21,30 21,18 27,18 27,30 33,30 33,18 39,18 39,30 48,30"
+        fill="none" stroke={color} strokeWidth="1.6"
+        strokeLinecap="round" strokeLinejoin="round"
       />
     </svg>
   );
 }
 
-// Mapa para uso fácil
 export const GATE_SYMBOLS = {
   AND: ANDSymbol,
   OR: ORSymbol,
