@@ -1,12 +1,10 @@
 /* ════════════════════════════════════════════════════════════
    circuitos.cm — Simulador de Circuitos Lógicos
-   Estética: Logic.ly modernizado
-   - Chrome: dark slate (sidebar, menubar, statusbar)
-   - Canvas: light slate com grid de pontos
-   - Acento: cyan elétrico (#0ea5e9)
+   Tema claro (default) + tema escuro (.dark no body)
    ════════════════════════════════════════════════════════════ */
 
 :root {
+  /* Chrome (menubar, statusbar) - permanece dark sempre */
   --bg-chrome: #0f172a;
   --bg-chrome-hi: #1e293b;
   --bg-chrome-soft: #1a2438;
@@ -16,9 +14,30 @@
   --text-chrome-dim: #94a3b8;
   --text-chrome-mute: #64748b;
 
-  --bg-canvas: #f1f5f9;
-  --bg-canvas-grid: #cbd5e1;
+  /* Sidebar - claro por padrão */
+  --sidebar-bg: #e8eaed;
+  --sidebar-border: #c8cacd;
+  --sidebar-panel-bg: #d4d7db;
+  --sidebar-panel-bg-hover: #cacdd1;
+  --sidebar-panel-border: #c2c5c9;
+  --sidebar-panel-text: #1a1a2e;
+  --sidebar-card-bg: #ffffff;
+  --sidebar-card-border: #c2c5c9;
+  --sidebar-card-active: #f0f4ff;
+  --sidebar-label-text: #374151;
 
+  /* Canvas - claro por padrão */
+  --canvas-bg: #f1f5f9;
+  --grid-dot: #cbd5e1;
+  --canvas-text: #1f2937;
+  --canvas-text-dim: #475569;
+  --canvas-text-mute: #94a3b8;
+  --comp-fill: #fafafa;
+  --comp-stroke: #1f2937;
+  --comp-toggle-off: #cbd5e1;
+  --wire-off: #475569;
+
+  /* Acento */
   --accent: #0ea5e9;
   --accent-hi: #38bdf8;
   --accent-dim: #0369a1;
@@ -27,14 +46,40 @@
   --danger: #f43f5e;
   --danger-bg: rgba(244, 63, 94, 0.1);
   --green: #10b981;
-  --amber: #f59e0b;
 
   --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-
-  --shadow-1: 0 1px 2px rgba(0,0,0,0.2);
-  --shadow-2: 0 4px 12px rgba(0,0,0,0.3);
 }
+
+/* ── Modo escuro ── */
+body.dark {
+  /* Sidebar dark */
+  --sidebar-bg: #1f2937;
+  --sidebar-border: #374151;
+  --sidebar-panel-bg: #111827;
+  --sidebar-panel-bg-hover: #0f172a;
+  --sidebar-panel-border: #374151;
+  --sidebar-panel-text: #e5e7eb;
+  --sidebar-card-bg: #2d3748;
+  --sidebar-card-border: #4b5563;
+  --sidebar-card-active: #1e3a5f;
+  --sidebar-label-text: #d1d5db;
+
+  /* Canvas dark */
+  --canvas-bg: #0f172a;
+  --grid-dot: #1e293b;
+  --canvas-text: #e5e7eb;
+  --canvas-text-dim: #94a3b8;
+  --canvas-text-mute: #64748b;
+  --comp-fill: #1e293b;
+  --comp-stroke: #cbd5e1;
+  --comp-toggle-off: #475569;
+  --wire-off: #64748b;
+}
+
+/* ════════════════════════════════════════════════════════════
+   Reset & base
+   ════════════════════════════════════════════════════════════ */
 
 * { box-sizing: border-box; }
 
@@ -57,8 +102,18 @@ button {
   font-family: inherit;
 }
 
+kbd {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--border-chrome);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--text-chrome-dim);
+}
+
 /* ════════════════════════════════════════════════════════════
-   App shell layout
+   App shell
    ════════════════════════════════════════════════════════════ */
 
 .app-shell {
@@ -102,10 +157,7 @@ button {
   font-weight: 700;
 }
 
-.brand-icon {
-  display: inline-flex;
-  align-items: center;
-}
+.brand-icon { display: inline-flex; align-items: center; }
 
 .brand-text {
   font-family: var(--font-mono);
@@ -114,9 +166,7 @@ button {
   color: var(--text-chrome);
 }
 
-.brand-accent {
-  color: var(--accent);
-}
+.brand-accent { color: var(--accent); }
 
 .menu-items {
   display: flex;
@@ -144,8 +194,27 @@ button {
   cursor: not-allowed;
 }
 
-.menubar-spacer {
-  flex: 1;
+.menubar-spacer { flex: 1; }
+
+/* Theme toggle */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: var(--bg-chrome-hi);
+  border: 1px solid var(--border-chrome);
+  border-radius: 6px;
+  color: var(--text-chrome-dim);
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.theme-toggle:hover {
+  color: var(--accent-hi);
+  border-color: var(--accent-dim);
+  background: var(--accent-bg);
 }
 
 .version-tag {
@@ -217,6 +286,8 @@ button {
   margin: 0 6px;
 }
 
+.toolbar-spacer { flex: 1; }
+
 .toolbar-label {
   font-size: 10px;
   color: var(--text-chrome-mute);
@@ -226,36 +297,42 @@ button {
   margin-right: 2px;
 }
 
+.shortcut-hint {
+  font-size: 10px;
+  color: var(--text-chrome-mute);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.shortcut-hint kbd {
+  margin: 0 2px;
+}
+
 /* ════════════════════════════════════════════════════════════
-   Sidebar — estilo Logic.ly
-   Fundo claro, header cinza, cards brancos, chevron azul
+   Sidebar
    ════════════════════════════════════════════════════════════ */
 
 .sidebar {
   width: 248px;
-  background: #e8eaed;
-  border-right: 1px solid #c8cacd;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
   overflow-y: auto;
   flex-shrink: 0;
   padding: 0;
+  transition: background .2s;
 }
 
-.sidebar::-webkit-scrollbar {
-  width: 6px;
-}
-.sidebar::-webkit-scrollbar-track {
-  background: #e8eaed;
-}
+.sidebar::-webkit-scrollbar { width: 6px; }
+.sidebar::-webkit-scrollbar-track { background: var(--sidebar-bg); }
 .sidebar::-webkit-scrollbar-thumb {
-  background: #b0b3b8;
+  background: var(--sidebar-panel-border);
   border-radius: 3px;
-}
-.sidebar::-webkit-scrollbar-thumb:hover {
-  background: #8b8f96;
 }
 
 .sidebar-panel {
-  border-bottom: 1px solid #c8cacd;
+  border-bottom: 1px solid var(--sidebar-border);
 }
 
 .sidebar-panel-header {
@@ -264,25 +341,22 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: 9px 12px 9px 14px;
-  background: #d4d7db;
+  background: var(--sidebar-panel-bg);
   border: none;
-  border-bottom: 1px solid #c2c5c9;
-  color: #1a1a2e;
+  border-bottom: 1px solid var(--sidebar-panel-border);
+  color: var(--sidebar-panel-text);
   font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0;
-  text-transform: none;
   cursor: pointer;
   text-align: left;
   transition: background .1s;
 }
 
 .sidebar-panel-header:hover {
-  background: #cacdd1;
+  background: var(--sidebar-panel-bg-hover);
 }
 
-/* Chevron azul estilo Logic.ly */
 .chevron {
   width: 18px;
   height: 18px;
@@ -298,20 +372,15 @@ button {
   line-height: 1;
 }
 
-.chevron.open {
-  transform: rotate(0deg);
-}
-
-.chevron:not(.open) {
-  transform: rotate(-90deg);
-}
+.chevron.open { transform: rotate(0deg); }
+.chevron:not(.open) { transform: rotate(-90deg); }
 
 .sidebar-panel-body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
   padding: 8px;
-  background: #e8eaed;
+  background: var(--sidebar-bg);
 }
 
 .palette-item {
@@ -321,23 +390,23 @@ button {
   justify-content: center;
   gap: 5px;
   padding: 8px 4px 6px;
-  background: #ffffff;
-  border: 1px solid #c2c5c9;
+  background: var(--sidebar-card-bg);
+  border: 1px solid var(--sidebar-card-border);
   border-radius: 4px;
   cursor: grab;
-  transition: border-color .12s, box-shadow .12s;
+  transition: border-color .12s, box-shadow .12s, background .2s;
   user-select: none;
   min-height: 72px;
 }
 
 .palette-item:hover {
-  border-color: #1565c0;
-  box-shadow: 0 0 0 1px #1565c0;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 .palette-item:active {
   cursor: grabbing;
-  background: #f0f4ff;
+  background: var(--sidebar-card-active);
 }
 
 .palette-item-icon {
@@ -347,13 +416,17 @@ button {
   height: 38px;
 }
 
+/* No modo escuro, os ícones SVG dos cards precisam ficar visíveis */
+body.dark .palette-item-icon svg {
+  filter: invert(0.85) hue-rotate(180deg);
+}
+
 .palette-item-label {
   font-size: 10px;
   font-weight: 500;
-  color: #374151;
+  color: var(--sidebar-label-text);
   text-align: center;
   font-family: var(--font-sans);
-  letter-spacing: 0;
   line-height: 1.3;
 }
 
@@ -365,8 +438,9 @@ button {
   flex: 1;
   position: relative;
   overflow: hidden;
-  background: var(--bg-canvas);
+  background: var(--canvas-bg);
   min-width: 0;
+  transition: background .2s;
 }
 
 .canvas-svg {
@@ -421,14 +495,8 @@ button {
   box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
 }
 
-.status-label {
-  color: var(--text-chrome-mute);
-}
-
-.status-value {
-  color: var(--text-chrome);
-  font-weight: 600;
-}
+.status-label { color: var(--text-chrome-mute); }
+.status-value { color: var(--text-chrome); font-weight: 600; }
 
 .status-sep {
   width: 1px;
@@ -436,25 +504,15 @@ button {
   background: var(--border-chrome);
 }
 
-.statusbar-spacer {
-  flex: 1;
-}
+.statusbar-spacer { flex: 1; }
 
 /* ════════════════════════════════════════════════════════════
    Responsive
    ════════════════════════════════════════════════════════════ */
 
 @media (max-width: 768px) {
-  .sidebar {
-    width: 180px;
-  }
-  .sidebar-panel-body {
-    grid-template-columns: 1fr;
-  }
-  .menu-items {
-    display: none;
-  }
-  .version-tag {
-    display: none;
-  }
+  .sidebar { width: 200px; }
+  .sidebar-panel-body { grid-template-columns: 1fr; }
+  .menu-items { display: none; }
+  .version-tag, .shortcut-hint { display: none; }
 }

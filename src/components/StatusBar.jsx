@@ -1,38 +1,42 @@
 import React from 'react';
 
-export default function StatusBar({ componentCount, wireCount, wiringFrom, selectedId }) {
+export default function StatusBar({ componentCount, wireCount, wiringFrom, selectionCount }) {
   return (
     <footer className="statusbar">
       <div className="status-group">
         <span className="status-dot active" />
-        <span>Pronto</span>
+        <span>Ready</span>
       </div>
       <div className="status-sep" />
       <div className="status-group">
-        <span className="status-label">Componentes:</span>
+        <span className="status-label">Components:</span>
         <span className="status-value">{componentCount}</span>
       </div>
       <div className="status-sep" />
       <div className="status-group">
-        <span className="status-label">Conexões:</span>
+        <span className="status-label">Wires:</span>
         <span className="status-value">{wireCount}</span>
       </div>
+      {selectionCount > 0 && (
+        <>
+          <div className="status-sep" />
+          <div className="status-group">
+            <span className="status-label">Selected:</span>
+            <span className="status-value">{selectionCount}</span>
+          </div>
+        </>
+      )}
 
       <div className="statusbar-spacer" />
 
       {wiringFrom && (
         <div className="status-group highlight">
-          <span>⚡ Conectando — clique no pino de destino (ESC para cancelar)</span>
+          <span>⚡ Wiring — click on destination pin (ESC to cancel)</span>
         </div>
       )}
-      {!wiringFrom && selectedId && (
-        <div className="status-group">
-          <span>Selecionado: {selectedId}</span>
-        </div>
-      )}
-      {!wiringFrom && !selectedId && (
+      {!wiringFrom && (
         <div className="status-group muted">
-          <span>Dica: clique em um pino de saída e arraste até um pino de entrada para conectar</span>
+          <span>Click pin to start wire · drag empty area to multi-select</span>
         </div>
       )}
     </footer>

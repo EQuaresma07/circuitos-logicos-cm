@@ -1,4 +1,4 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { InputSwitch, OutputProbe, Clock, Gate } from '../engine/components.js';
 import {
   ANDSymbol, ORSymbol, NOTSymbol, NANDSymbol, NORSymbol,
@@ -15,7 +15,6 @@ const GATE_SYMBOL_MAP = {
   NAND: NANDSymbol, NOR: NORSymbol, XOR: XORSymbol, XNOR: XNORSymbol,
 };
 
-// ── Helpers de geometria ──
 export function getPinPos(comp, pin) {
   const idx = comp.inputs.indexOf(pin);
   if (idx >= 0) {
@@ -30,29 +29,26 @@ export function getPinPos(comp, pin) {
   return { x: comp.x, y: comp.y };
 }
 
-// ── Renderizador de componente ──
+// ── CompNode ──
 function CompNode({ comp, selected, onMouseDown, onPinClick, onToggle }) {
   const isInput = comp instanceof InputSwitch;
   const isOutput = comp instanceof OutputProbe;
   const isClock = comp instanceof Clock;
-  const isGate = comp instanceof Gate;
-
-  const selectedColor = '#0ea5e9';
 
   return (
     <g
       onMouseDown={(e) => { e.stopPropagation(); onMouseDown(e, comp.id); }}
       style={{ cursor: 'grab' }}
+      data-comp="true"
     >
-      {/* Fundo do componente */}
       {isInput ? (
-        <InputBody comp={comp} selected={selected} onToggle={onToggle} />
+        <InputBody comp={comp} onToggle={onToggle} />
       ) : isOutput ? (
-        <OutputBody comp={comp} selected={selected} />
+        <OutputBody comp={comp} />
       ) : isClock ? (
-        <ClockBody comp={comp} selected={selected} />
+        <ClockBody comp={comp} />
       ) : (
-        <GateBody comp={comp} selected={selected} />
+        <GateBody comp={comp} />
       )}
 
       {/* Pinos de entrada */}
@@ -60,30 +56,20 @@ function CompNode({ comp, selected, onMouseDown, onPinClick, onToggle }) {
         const pos = getPinPos(comp, pin);
         return (
           <g key={pin.id}>
-            <line
-              x1={pos.x}
-              y1={pos.y}
-              x2={pos.x + 8}
-              y2={pos.y}
-              stroke="#1f2937"
-              strokeWidth="1.5"
-            />
+            <line x1={pos.x} y1={pos.y} x2={pos.x + 8} y2={pos.y} stroke="var(--comp-stroke)" strokeWidth="1.5" />
             <circle
-              cx={pos.x}
-              cy={pos.y}
-              r={PIN_R + 3}
+              cx={pos.x} cy={pos.y} r={PIN_R + 3}
               fill="transparent"
               style={{ cursor: 'crosshair' }}
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => { e.stopPropagation(); onPinClick(pin.id); }}
             />
             <circle
-              cx={pos.x}
-              cy={pos.y}
-              r={PIN_R}
-              fill={pin.value ? '#0ea5e9' : '#fff'}
-              stroke="#1f2937"
-              strokeWidth="1.5"
+              cx={pos.x} cy={pos.y} r={PIN_R}
+              fill={pin.value ? 'var(--accent)' : 'var(--comp-fill)'}
+              stroke="var(--comp-stroke)" strokeWidth="1.5"
               style={{ cursor: 'crosshair', transition: 'fill .12s' }}
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => { e.stopPropagation(); onPinClick(pin.id); }}
             />
           </g>
@@ -95,30 +81,20 @@ function CompNode({ comp, selected, onMouseDown, onPinClick, onToggle }) {
         const pos = getPinPos(comp, pin);
         return (
           <g key={pin.id}>
-            <line
-              x1={pos.x}
-              y1={pos.y}
-              x2={pos.x - 8}
-              y2={pos.y}
-              stroke="#1f2937"
-              strokeWidth="1.5"
-            />
+            <line x1={pos.x} y1={pos.y} x2={pos.x - 8} y2={pos.y} stroke="var(--comp-stroke)" strokeWidth="1.5" />
             <circle
-              cx={pos.x}
-              cy={pos.y}
-              r={PIN_R + 3}
+              cx={pos.x} cy={pos.y} r={PIN_R + 3}
               fill="transparent"
               style={{ cursor: 'crosshair' }}
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => { e.stopPropagation(); onPinClick(pin.id); }}
             />
             <circle
-              cx={pos.x}
-              cy={pos.y}
-              r={PIN_R}
-              fill={pin.value ? '#0ea5e9' : '#fff'}
-              stroke="#1f2937"
-              strokeWidth="1.5"
+              cx={pos.x} cy={pos.y} r={PIN_R}
+              fill={pin.value ? 'var(--accent)' : 'var(--comp-fill)'}
+              stroke="var(--comp-stroke)" strokeWidth="1.5"
               style={{ cursor: 'crosshair', transition: 'fill .12s' }}
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => { e.stopPropagation(); onPinClick(pin.id); }}
             />
           </g>
@@ -128,13 +104,11 @@ function CompNode({ comp, selected, onMouseDown, onPinClick, onToggle }) {
       {/* Outline de seleção */}
       {selected && (
         <rect
-          x={comp.x - 6}
-          y={comp.y - 6}
-          width={COMP_W + 12}
-          height={COMP_H + 12}
+          x={comp.x - 6} y={comp.y - 6}
+          width={COMP_W + 12} height={COMP_H + 12}
           rx={6}
           fill="none"
-          stroke={selectedColor}
+          stroke="var(--accent)"
           strokeWidth="1.5"
           strokeDasharray="4,3"
           pointerEvents="none"
@@ -144,23 +118,18 @@ function CompNode({ comp, selected, onMouseDown, onPinClick, onToggle }) {
   );
 }
 
-function GateBody({ comp, selected }) {
+function GateBody({ comp }) {
   const Symbol = GATE_SYMBOL_MAP[comp.type];
   const cx = comp.x + COMP_W / 2;
-  const cy = comp.y + COMP_H / 2;
   return (
     <>
-      {/* Símbolo gráfico da porta dentro de um foreignObject seria mais simples,
-          mas para máxima compatibilidade desenhamos diretamente em SVG via <g> com transform */}
-      <g transform={`translate(${comp.x + 8}, ${comp.y + 8})`}>
-        {Symbol && <Symbol width={80} height={40} />}
+      <g transform={`translate(${comp.x + 8}, ${comp.y + 6})`}>
+        {Symbol && <Symbol width={80} height={44} />}
       </g>
-      {/* Label do tipo abaixo */}
       <text
-        x={cx}
-        y={comp.y + COMP_H + 12}
+        x={cx} y={comp.y + COMP_H + 12}
         textAnchor="middle"
-        fill="#475569"
+        fill="var(--canvas-text-dim)"
         fontSize="10"
         fontWeight="600"
         fontFamily="'JetBrains Mono', monospace"
@@ -171,30 +140,21 @@ function GateBody({ comp, selected }) {
   );
 }
 
-function InputBody({ comp, selected, onToggle }) {
+function InputBody({ comp, onToggle }) {
   const w = COMP_W;
   const h = COMP_H;
   return (
     <>
       <rect
-        x={comp.x}
-        y={comp.y}
-        width={w}
-        height={h}
-        rx={4}
-        fill="#fafafa"
-        stroke="#1f2937"
-        strokeWidth="1.5"
+        x={comp.x} y={comp.y} width={w} height={h} rx={4}
+        fill="var(--comp-fill)" stroke="var(--comp-stroke)" strokeWidth="1.5"
       />
-      {/* Toggle visual */}
       <rect
-        x={comp.x + 14}
-        y={comp.y + h / 2 - 12}
-        width={44}
-        height={24}
-        rx={12}
-        fill={comp.state ? '#0ea5e9' : '#cbd5e1'}
+        x={comp.x + 14} y={comp.y + h / 2 - 12}
+        width={44} height={24} rx={12}
+        fill={comp.state ? 'var(--accent)' : 'var(--comp-toggle-off)'}
         style={{ cursor: 'pointer', transition: 'fill .15s' }}
+        onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => { e.stopPropagation(); onToggle(comp.id); }}
       />
       <circle
@@ -202,28 +162,23 @@ function InputBody({ comp, selected, onToggle }) {
         cy={comp.y + h / 2}
         r={9}
         fill="#fff"
-        stroke="#1f2937"
-        strokeWidth="1.2"
+        stroke="var(--comp-stroke)" strokeWidth="1.2"
         style={{ pointerEvents: 'none' }}
       />
       <text
-        x={comp.x + 78}
-        y={comp.y + h / 2 + 4}
-        fill="#1f2937"
-        fontSize="11"
-        fontWeight="700"
-        fontFamily="'JetBrains Mono', monospace"
-        textAnchor="middle"
+        x={comp.x + 78} y={comp.y + h / 2 + 4}
+        fill="var(--canvas-text)" fontSize="11" fontWeight="700"
+        fontFamily="'JetBrains Mono', monospace" textAnchor="middle"
+        style={{ pointerEvents: 'none' }}
       >
         {comp.state ? '1' : '0'}
       </text>
       <text
-        x={comp.x + w / 2}
-        y={comp.y + h + 12}
+        x={comp.x + w / 2} y={comp.y + h + 12}
         textAnchor="middle"
-        fill="#475569"
-        fontSize="10"
+        fill="var(--canvas-text-dim)" fontSize="10"
         fontFamily="'JetBrains Mono', monospace"
+        style={{ pointerEvents: 'none' }}
       >
         {comp.label}
       </text>
@@ -238,24 +193,14 @@ function OutputBody({ comp }) {
   return (
     <>
       <rect
-        x={comp.x}
-        y={comp.y}
-        width={w}
-        height={h}
-        rx={4}
-        fill="#fafafa"
-        stroke="#1f2937"
-        strokeWidth="1.5"
+        x={comp.x} y={comp.y} width={w} height={h} rx={4}
+        fill="var(--comp-fill)" stroke="var(--comp-stroke)" strokeWidth="1.5"
       />
-      {/* Lâmpada */}
-      <g transform={`translate(${comp.x + w / 2 - 18}, ${comp.y + 4})`}>
+      <g transform={`translate(${comp.x + w / 2 - 18}, ${comp.y + 4})`} style={{ pointerEvents: 'none' }}>
         <circle
-          cx="18"
-          cy="20"
-          r="14"
-          fill={on ? '#fde047' : '#f3f4f6'}
-          stroke="#1f2937"
-          strokeWidth="1.5"
+          cx="18" cy="20" r="14"
+          fill={on ? '#fde047' : 'var(--comp-fill)'}
+          stroke="var(--comp-stroke)" strokeWidth="1.5"
           style={{ transition: 'fill .15s' }}
         />
         {on && (
@@ -265,16 +210,14 @@ function OutputBody({ comp }) {
             <line x1="2" y1="9" x2="4" y2="11" stroke="#facc15" strokeWidth="1.5" strokeLinecap="round" />
           </>
         )}
-        <line x1="12" y1="35" x2="24" y2="35" stroke="#1f2937" strokeWidth="1.5" />
-        <line x1="13" y1="38" x2="23" y2="38" stroke="#1f2937" strokeWidth="1.5" />
+        <line x1="12" y1="35" x2="24" y2="35" stroke="var(--comp-stroke)" strokeWidth="1.5" />
+        <line x1="13" y1="38" x2="23" y2="38" stroke="var(--comp-stroke)" strokeWidth="1.5" />
       </g>
       <text
-        x={comp.x + w / 2}
-        y={comp.y + h + 12}
-        textAnchor="middle"
-        fill="#475569"
-        fontSize="10"
+        x={comp.x + w / 2} y={comp.y + h + 12}
+        textAnchor="middle" fill="var(--canvas-text-dim)" fontSize="10"
         fontFamily="'JetBrains Mono', monospace"
+        style={{ pointerEvents: 'none' }}
       >
         {comp.label}
       </text>
@@ -288,16 +231,9 @@ function ClockBody({ comp }) {
   return (
     <>
       <rect
-        x={comp.x}
-        y={comp.y}
-        width={w}
-        height={h}
-        rx={4}
-        fill="#fafafa"
-        stroke="#1f2937"
-        strokeWidth="1.5"
+        x={comp.x} y={comp.y} width={w} height={h} rx={4}
+        fill="var(--comp-fill)" stroke="var(--comp-stroke)" strokeWidth="1.5"
       />
-      {/* Onda quadrada */}
       <polyline
         points={
           `${comp.x + 12},${comp.y + h - 14} ` +
@@ -310,16 +246,15 @@ function ClockBody({ comp }) {
           `${comp.x + 82},${comp.y + 14}`
         }
         fill="none"
-        stroke={comp.state ? '#0ea5e9' : '#1f2937'}
+        stroke={comp.state ? 'var(--accent)' : 'var(--comp-stroke)'}
         strokeWidth="2"
+        style={{ pointerEvents: 'none' }}
       />
       <text
-        x={comp.x + w / 2}
-        y={comp.y + h + 12}
-        textAnchor="middle"
-        fill="#475569"
-        fontSize="10"
+        x={comp.x + w / 2} y={comp.y + h + 12}
+        textAnchor="middle" fill="var(--canvas-text-dim)" fontSize="10"
         fontFamily="'JetBrains Mono', monospace"
+        style={{ pointerEvents: 'none' }}
       >
         CLK
       </text>
@@ -327,13 +262,12 @@ function ClockBody({ comp }) {
   );
 }
 
-// ── Renderizador de fio ──
 function WirePath({ wire }) {
   const fromPos = getPinPos(wire.from.owner, wire.from);
   const toPos = getPinPos(wire.to.owner, wire.to);
   const dx = Math.max(20, (toPos.x - fromPos.x) * 0.5);
   const path = `M${fromPos.x},${fromPos.y} C${fromPos.x + dx},${fromPos.y} ${toPos.x - dx},${toPos.y} ${toPos.x},${toPos.y}`;
-  const color = wire.from.value ? '#0ea5e9' : '#475569';
+  const color = wire.from.value ? 'var(--accent)' : 'var(--wire-off)';
   return (
     <path
       d={path}
@@ -350,12 +284,13 @@ function WirePath({ wire }) {
 export default function Canvas({
   components,
   wires,
-  selectedId,
+  selectedIds,
   wiringFrom,
   mousePos,
+  marquee,
   onMouseMove,
   onMouseUp,
-  onClick,
+  onMouseDown,
   onCompMouseDown,
   onPinClick,
   onToggle,
@@ -382,7 +317,6 @@ export default function Canvas({
     onDrop(type, p.x - COMP_W / 2, p.y - COMP_H / 2);
   }, [onDrop, svgRef]);
 
-  // Render preview de wiring
   const wiringPreview = (() => {
     if (!wiringFrom) return null;
     let pin = null;
@@ -396,14 +330,32 @@ export default function Canvas({
     const pos = getPinPos(pin.owner, pin);
     return (
       <line
-        x1={pos.x}
-        y1={pos.y}
-        x2={mousePos.x}
-        y2={mousePos.y}
-        stroke="#0ea5e9"
+        x1={pos.x} y1={pos.y}
+        x2={mousePos.x} y2={mousePos.y}
+        stroke="var(--accent)"
         strokeWidth="2"
         strokeDasharray="5,3"
         opacity="0.7"
+      />
+    );
+  })();
+
+  // Retângulo da seleção (marquee)
+  const marqueeRect = (() => {
+    if (!marquee) return null;
+    const x = Math.min(marquee.x0, marquee.x1);
+    const y = Math.min(marquee.y0, marquee.y1);
+    const w = Math.abs(marquee.x1 - marquee.x0);
+    const h = Math.abs(marquee.y1 - marquee.y0);
+    return (
+      <rect
+        x={x} y={y} width={w} height={h}
+        fill="var(--accent)"
+        fillOpacity="0.1"
+        stroke="var(--accent)"
+        strokeWidth="1"
+        strokeDasharray="4,3"
+        pointerEvents="none"
       />
     );
   })();
@@ -419,58 +371,55 @@ export default function Canvas({
         className="canvas-svg"
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
-        onClick={onClick}
+        onMouseDown={onMouseDown}
         style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
       >
         <defs>
           <pattern id="grid-pattern" width="20" height="20" patternUnits="userSpaceOnUse">
-            <circle cx="10" cy="10" r="0.7" fill="#cbd5e1" />
+            <circle cx="10" cy="10" r="0.7" fill="var(--grid-dot)" />
           </pattern>
         </defs>
-        <rect width="100%" height="100%" fill="#f1f5f9" />
-        <rect width="100%" height="100%" fill="url(#grid-pattern)" />
+        {/* IMPORTANTE: data-bg="true" identifica fundos clicáveis para deselect/marquee */}
+        <rect data-bg="true" width="100%" height="100%" fill="var(--canvas-bg)" />
+        <rect data-bg="true" width="100%" height="100%" fill="url(#grid-pattern)" />
 
-        {/* Wires */}
         {wires.map(w => <WirePath key={w.id} wire={w} />)}
 
-        {/* Wiring preview */}
         {wiringPreview}
 
-        {/* Components */}
         {components.map(c => (
           <CompNode
             key={c.id}
             comp={c}
-            selected={c.id === selectedId}
+            selected={selectedIds.has(c.id)}
             onMouseDown={onCompMouseDown}
             onPinClick={onPinClick}
             onToggle={onToggle}
           />
         ))}
 
-        {/* Empty hint */}
+        {marqueeRect}
+
         {components.length === 0 && (
-          <g>
+          <g style={{ pointerEvents: 'none' }}>
             <text
-              x="50%"
-              y="48%"
+              x="50%" y="48%"
               textAnchor="middle"
-              fill="#94a3b8"
+              fill="var(--canvas-text-dim)"
               fontSize="14"
               fontFamily="'Inter', sans-serif"
               fontWeight="500"
             >
-              Arraste componentes da barra lateral para começar
+              Drag components from the sidebar to start
             </text>
             <text
-              x="50%"
-              y="53%"
+              x="50%" y="53%"
               textAnchor="middle"
-              fill="#cbd5e1"
+              fill="var(--canvas-text-mute)"
               fontSize="11"
               fontFamily="'Inter', sans-serif"
             >
-              ou carregue um preset na barra de ferramentas
+              or load a preset from the toolbar
             </text>
           </g>
         )}

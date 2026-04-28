@@ -17,7 +17,7 @@ function PaletteItem({ type, label, children }) {
       className="palette-item"
       draggable
       onDragStart={handleDragStart}
-      title={`Arraste para o canvas: ${label}`}
+      title={`Drag to canvas: ${label}`}
     >
       <div className="palette-item-icon">{children}</div>
       <div className="palette-item-label">{label}</div>
@@ -25,7 +25,7 @@ function PaletteItem({ type, label, children }) {
   );
 }
 
-// ── Painel colapsável — chevron azul estilo Logic.ly ──
+// ── Painel colapsável ──
 function Panel({ title, children, defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
@@ -46,41 +46,41 @@ function Panel({ title, children, defaultOpen = true }) {
 export default function Sidebar() {
   return (
     <aside className="sidebar">
-      <Panel title="Controles de entrada">
-        <PaletteItem type="INPUT" label="Interruptor de alternância">
+      <Panel title="Input Controls">
+        <PaletteItem type="INPUT" label="Toggle Switch">
           <SwitchSymbol width={56} height={38} />
         </PaletteItem>
-        <PaletteItem type="CLOCK" label="Relógio">
+        <PaletteItem type="CLOCK" label="Clock">
           <ClockSymbol width={56} height={38} />
         </PaletteItem>
       </Panel>
 
-      <Panel title="Controles de saída">
-        <PaletteItem type="OUTPUT" label="Lâmpada elétrica">
+      <Panel title="Output Controls">
+        <PaletteItem type="OUTPUT" label="Light Bulb">
           <LampSymbol width={44} height={50} />
         </PaletteItem>
       </Panel>
 
-      <Panel title="Portas lógicas">
-        <PaletteItem type="NOT" label="NÃO Portão">
+      <Panel title="Logic Gates">
+        <PaletteItem type="NOT" label="NOT Gate">
           <NOTSymbol width={60} height={38} />
         </PaletteItem>
-        <PaletteItem type="AND" label="E Portão">
+        <PaletteItem type="AND" label="AND Gate">
           <ANDSymbol width={60} height={38} />
         </PaletteItem>
-        <PaletteItem type="OR" label="Portão OU">
+        <PaletteItem type="OR" label="OR Gate">
           <ORSymbol width={60} height={38} />
         </PaletteItem>
-        <PaletteItem type="NAND" label="Porta NAND">
+        <PaletteItem type="NAND" label="NAND Gate">
           <NANDSymbol width={60} height={38} />
         </PaletteItem>
-        <PaletteItem type="NOR" label="Portão NOR">
+        <PaletteItem type="NOR" label="NOR Gate">
           <NORSymbol width={60} height={38} />
         </PaletteItem>
-        <PaletteItem type="XOR" label="Porta XOR">
+        <PaletteItem type="XOR" label="XOR Gate">
           <XORSymbol width={60} height={38} />
         </PaletteItem>
-        <PaletteItem type="XNOR" label="Portão XNOR">
+        <PaletteItem type="XNOR" label="XNOR Gate">
           <XNORSymbol width={60} height={38} />
         </PaletteItem>
       </Panel>
