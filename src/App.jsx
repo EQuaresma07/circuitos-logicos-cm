@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import MenuBar from './components/MenuBar.jsx';
 import Sidebar from './components/Sidebar.jsx';
-import Canvas, { COMP_W, COMP_H } from './components/Canvas.jsx';
+import Canvas, { getCompSize } from './components/Canvas.jsx';
 import StatusBar from './components/StatusBar.jsx';
 import {
   InputSwitch, OutputProbe, Clock, Gate, Wire,
-  uid, resetUid,
+  PushButton, HighConstant, LowConstant, PullUp, PullDown,
+  FourBitDigit, TriStateBuffer,
+  SRFlipFlop, DFlipFlop, JKFlipFlop, TFlipFlop,
+  Label as LabelComp,
+  uid, resetUid, createComponent,
 } from './engine/components.js';
 import { propagate } from './engine/propagation.js';
 import { buildHalfAdder, buildSRLatch } from './engine/presets.js';
@@ -19,27 +23,25 @@ function findPin(components, pinId) {
   return null;
 }
 
-// ── Clonar um componente (para copy/paste) ──
-function cloneComponent(orig, idMap) {
-  let clone;
-  const newId = uid();
-  if (orig instanceof InputSwitch) {
-    clone = new InputSwitch(newId, orig.label);
-    clone.state = orig.state;
-  } else if (orig instanceof OutputProbe) {
-    clone = new OutputProbe(newId, orig.label);
-  } else if (orig instanceof Clock) {
-    clone = new Clock(newId, orig.label, orig.periodMs);
-  } else if (orig instanceof Gate) {
-    clone = new Gate(newId, orig.type);
-  }
-  clone.x = orig.x;
-  clone.y = orig.y;
-  // Mapeia pinos antigos -> novos por índice
-  idMap.set(orig.id, clone.id);
-  orig.inputs.forEach((p, i) => idMap.set(p.id, clone.inputs[i].id));
-  orig.outputs.forEach((p, i) => idMap.set(p.id, clone.outputs[i].id));
-  return clone;
+// Identifica tipo string a partir de instância
+function typeOf(c) {
+  if (c instanceof InputSwitch) return 'INPUT';
+  if (c instanceof PushButton) return 'BUTTON';
+  if (c instanceof HighConstant) return 'HIGH';
+  if (c instanceof LowConstant) return 'LOW';
+  if (c instanceof PullUp) return 'PULLUP';
+  if (c instanceof PullDown) return 'PULLDOWN';
+  if (c instanceof Clock) return 'CLOCK';
+  if (c instanceof OutputProbe) return 'OUTPUT';
+  if (c instanceof FourBitDigit) return 'DIGIT4';
+  if (c instanceof TriStateBuffer) return 'TRISTATE';
+  if (c instanceof SRFlipFlop) return 'SR_FF';
+  if (c instanceof DFlipFlop) return 'D_FF';
+  if (c instanceof JKFlipFlop) return 'JK_FF';
+  if (c instanceof TFlipFlop) return 'T_FF';
+  if (c instanceof LabelComp) return 'LABEL';
+  if (c instanceof Gate) return c.type;
+  return 'UNKNOWN';
 }
 
 export default function App() {
@@ -49,23 +51,19 @@ export default function App() {
   const [dragging, setDragging] = useState(null);
   const [wiringFrom, setWiringFrom] = useState(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [marquee, setMarquee] = useState(null); // { x0, y0, x1, y1 }
+  const [marquee, setMarquee] = useState(null);
   const [darkMode, setDarkMode] = useState(false);
+  const [editingLabelId, setEditingLabelId] = useState(null);
   const [, setTick] = useState(0);
   const svgRef = useRef(null);
   const clockRef = useRef(0);
-  const clipboardRef = useRef(null); // { components: [...], wires: [...] }
+  const clipboardRef = useRef(null);
 
-  // ── Aplica classe dark no body ──
   useEffect(() => {
-    if (darkMode) {
-      document.body.classList.add('dark');
-    } else {
-      document.body.classList.remove('dark');
-    }
+    if (darkMode) document.body.classList.add('dark');
+    else document.body.classList.remove('dark');
   }, [darkMode]);
 
-  // ── Loop de animação para clocks e re-render ──
   useEffect(() => {
     let running = true;
     const start = performance.now();
@@ -79,12 +77,10 @@ export default function App() {
     return () => { running = false; };
   }, []);
 
-  // ── Propagação a cada render ──
   useEffect(() => {
     propagate(components, wires, clockRef.current);
   });
 
-  // ── Conversão de coordenadas ──
   const svgPoint = useCallback((e) => {
     const svg = svgRef.current;
     if (!svg) return { x: e.clientX, y: e.clientY };
@@ -95,18 +91,15 @@ export default function App() {
     return pt.matrixTransform(ctm);
   }, []);
 
-  // ── Mouse move global ──
   const handleMouseMove = useCallback((e) => {
     const pos = svgPoint(e);
     setMousePos(pos);
 
-    // Atualizar retângulo de seleção (marquee)
     if (marquee) {
       setMarquee(m => m && { ...m, x1: pos.x, y1: pos.y });
       return;
     }
 
-    // Drag de componentes (potencialmente múltiplos)
     if (dragging) {
       const dx = pos.x - dragging.startX;
       const dy = pos.y - dragging.startY;
@@ -122,23 +115,17 @@ export default function App() {
     }
   }, [dragging, marquee, svgPoint]);
 
-  // ── Mouse up: finaliza drag ou marquee ──
   const handleMouseUp = useCallback(() => {
     setDragging(null);
     if (marquee) {
-      // Calcular componentes dentro do retângulo
       const x0 = Math.min(marquee.x0, marquee.x1);
       const y0 = Math.min(marquee.y0, marquee.y1);
       const x1 = Math.max(marquee.x0, marquee.x1);
       const y1 = Math.max(marquee.y0, marquee.y1);
       const inside = new Set();
       components.forEach(c => {
-        const cx0 = c.x;
-        const cy0 = c.y;
-        const cx1 = c.x + COMP_W;
-        const cy1 = c.y + COMP_H;
-        // Intersecção de retângulos
-        if (cx1 >= x0 && cx0 <= x1 && cy1 >= y0 && cy0 <= y1) {
+        const { w, h } = getCompSize(c);
+        if (c.x + w >= x0 && c.x <= x1 && c.y + h >= y0 && c.y <= y1) {
           inside.add(c.id);
         }
       });
@@ -147,24 +134,21 @@ export default function App() {
     }
   }, [marquee, components]);
 
-  // ── Mouse down em área vazia: inicia marquee ──
   const handleCanvasMouseDown = useCallback((e) => {
-    // Só inicia marquee se for clique direto no SVG/grid (não em componentes)
     const isBg = e.target.dataset && e.target.dataset.bg === 'true';
     if (isBg && e.button === 0) {
       const pos = svgPoint(e);
       setMarquee({ x0: pos.x, y0: pos.y, x1: pos.x, y1: pos.y });
       setSelectedIds(new Set());
       setWiringFrom(null);
+      setEditingLabelId(null);
     }
   }, [svgPoint]);
 
-  // ── Drag de componente ──
   const handleCompMouseDown = useCallback((e, compId) => {
     if (e.button !== 0) return;
     const pos = svgPoint(e);
 
-    // Se shift está pressionado, alterna seleção
     if (e.shiftKey) {
       setSelectedIds(prev => {
         const next = new Set(prev);
@@ -175,7 +159,6 @@ export default function App() {
       return;
     }
 
-    // Se o componente clicado não está na seleção, seleciona só ele
     let activeIds;
     if (selectedIds.has(compId)) {
       activeIds = selectedIds;
@@ -184,7 +167,6 @@ export default function App() {
       setSelectedIds(activeIds);
     }
 
-    // Captura posições iniciais de todos os selecionados
     const offsets = {};
     components.forEach(c => {
       if (activeIds.has(c.id)) {
@@ -194,7 +176,6 @@ export default function App() {
     setDragging({ startX: pos.x, startY: pos.y, offsets });
   }, [components, selectedIds, svgPoint]);
 
-  // ── Wiring por clique ──
   const handlePinClick = useCallback((pinId) => {
     if (!wiringFrom) {
       setWiringFrom(pinId);
@@ -209,39 +190,69 @@ export default function App() {
     if (fromPin && toPin && fromPin.direction !== toPin.direction) {
       const src = fromPin.direction === 'output' ? fromPin : toPin;
       const dst = fromPin.direction === 'input' ? fromPin : toPin;
-      const alreadyConnected = wires.some(w => w.to.id === dst.id);
       const exists = wires.some(w => w.from.id === src.id && w.to.id === dst.id);
-      if (!exists && !alreadyConnected) {
+      // Permitimos múltiplos drivers (necessário para Pull + TriState)
+      // mas não duplicamos a mesma conexão
+      if (!exists) {
         setWires(prev => [...prev, new Wire(uid(), src, dst)]);
       }
     }
     setWiringFrom(null);
   }, [wiringFrom, components, wires]);
 
-  // ── Toggle de input ──
   const toggleInput = useCallback((compId) => {
     setComponents(prev => {
       const c = prev.find(c => c.id === compId);
-      if (c && c instanceof InputSwitch) c.toggle();
+      if (c instanceof InputSwitch) c.toggle();
       return [...prev];
     });
   }, []);
 
-  // ── Drop de novo componente ──
+  // Push button handlers
+  const handlePress = useCallback((compId) => {
+    setComponents(prev => {
+      const c = prev.find(c => c.id === compId);
+      if (c instanceof PushButton) c.press();
+      return [...prev];
+    });
+  }, []);
+
+  const handleRelease = useCallback((compId) => {
+    setComponents(prev => {
+      const c = prev.find(c => c.id === compId);
+      if (c instanceof PushButton) c.release();
+      return [...prev];
+    });
+  }, []);
+
+  // Label handlers
+  const handleLabelEdit = useCallback((compId) => {
+    setEditingLabelId(compId);
+  }, []);
+
+  const handleLabelCommit = useCallback((compId, newText) => {
+    setComponents(prev => {
+      const c = prev.find(c => c.id === compId);
+      if (c instanceof LabelComp) {
+        c.text = newText || 'Label';
+      }
+      return [...prev];
+    });
+    setEditingLabelId(null);
+  }, []);
+
+  const handleLabelCancel = useCallback(() => {
+    setEditingLabelId(null);
+  }, []);
+
   const handleDrop = useCallback((type, x, y) => {
-    let comp;
-    const id = uid();
-    if (type === 'INPUT') comp = new InputSwitch(id);
-    else if (type === 'OUTPUT') comp = new OutputProbe(id);
-    else if (type === 'CLOCK') comp = new Clock(id, 'CLK', 800);
-    else comp = new Gate(id, type);
+    const comp = createComponent(type);
     comp.x = x;
     comp.y = y;
     setComponents(prev => [...prev, comp]);
-    setSelectedIds(new Set([id]));
+    setSelectedIds(new Set([comp.id]));
   }, []);
 
-  // ── Deletar selecionados ──
   const deleteSelected = useCallback(() => {
     if (selectedIds.size === 0) return;
     setWires(prev => prev.filter(w =>
@@ -251,25 +262,22 @@ export default function App() {
     setSelectedIds(new Set());
   }, [selectedIds]);
 
-  // ── Selecionar todos ──
   const selectAll = useCallback(() => {
     setSelectedIds(new Set(components.map(c => c.id)));
   }, [components]);
 
-  // ── Copiar selecionados (snapshot serializado em memória) ──
   const copySelected = useCallback(() => {
     if (selectedIds.size === 0) return;
     const selectedComps = components.filter(c => selectedIds.has(c.id));
-    // Fios apenas entre componentes selecionados
     const selectedWires = wires.filter(w =>
       selectedIds.has(w.from.owner.id) && selectedIds.has(w.to.owner.id)
     );
-    // Serializar como descrição leve (sem instâncias React-influenciadas)
     clipboardRef.current = {
       components: selectedComps.map(c => ({
         id: c.id,
-        type: c instanceof Gate ? c.type : (c instanceof InputSwitch ? 'INPUT' : c instanceof OutputProbe ? 'OUTPUT' : 'CLOCK'),
+        type: typeOf(c),
         label: c.label,
+        text: c.text, // for Label
         x: c.x,
         y: c.y,
         state: c.state,
@@ -284,35 +292,25 @@ export default function App() {
     };
   }, [components, wires, selectedIds]);
 
-  // ── Recortar ──
   const cutSelected = useCallback(() => {
     copySelected();
     deleteSelected();
   }, [copySelected, deleteSelected]);
 
-  // ── Colar ──
   const pasteClipboard = useCallback(() => {
     const clip = clipboardRef.current;
     if (!clip || clip.components.length === 0) return;
 
-    // Mapeia ID antigo -> novo componente
     const idToNewComp = new Map();
     const offsetX = 30;
     const offsetY = 30;
 
     const newComps = clip.components.map(spec => {
-      const newId = uid();
-      let comp;
-      if (spec.type === 'INPUT') {
-        comp = new InputSwitch(newId, spec.label);
-        comp.state = spec.state || false;
-      } else if (spec.type === 'OUTPUT') {
-        comp = new OutputProbe(newId, spec.label);
-      } else if (spec.type === 'CLOCK') {
-        comp = new Clock(newId, spec.label, spec.periodMs || 800);
-      } else {
-        comp = new Gate(newId, spec.type);
-      }
+      const comp = createComponent(spec.type);
+      if (spec.state !== undefined && comp instanceof InputSwitch) comp.state = spec.state;
+      if (spec.text !== undefined && comp instanceof LabelComp) comp.text = spec.text;
+      if (spec.label) comp.label = spec.label;
+      if (spec.periodMs && comp instanceof Clock) comp.periodMs = spec.periodMs;
       comp.x = spec.x + offsetX;
       comp.y = spec.y + offsetY;
       idToNewComp.set(spec.id, comp);
@@ -323,7 +321,10 @@ export default function App() {
       const fromComp = idToNewComp.get(w.fromCompId);
       const toComp = idToNewComp.get(w.toCompId);
       if (!fromComp || !toComp) return null;
-      return new Wire(uid(), fromComp.outputs[w.fromPinIdx], toComp.inputs[w.toPinIdx]);
+      const srcPin = fromComp.outputs[w.fromPinIdx];
+      const dstPin = toComp.inputs[w.toPinIdx];
+      if (!srcPin || !dstPin) return null;
+      return new Wire(uid(), srcPin, dstPin);
     }).filter(Boolean);
 
     setComponents(prev => [...prev, ...newComps]);
@@ -331,16 +332,16 @@ export default function App() {
     setSelectedIds(new Set(newComps.map(c => c.id)));
   }, []);
 
-  // ── Atalhos de teclado ──
   useEffect(() => {
     const onKey = (e) => {
-      // Ignorar quando digitando em inputs reais
+      // Ignorar quando digitando em input/textarea (incluindo o editor de Label)
       if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) return;
 
       if (e.key === 'Escape') {
         setWiringFrom(null);
         setSelectedIds(new Set());
         setMarquee(null);
+        setEditingLabelId(null);
         return;
       }
 
@@ -352,29 +353,15 @@ export default function App() {
         return;
       }
 
-      // Ctrl/Cmd combos
       const ctrl = e.ctrlKey || e.metaKey;
       if (!ctrl) return;
 
       switch (e.key.toLowerCase()) {
-        case 'a':
-          e.preventDefault();
-          selectAll();
-          break;
-        case 'c':
-          e.preventDefault();
-          copySelected();
-          break;
-        case 'x':
-          e.preventDefault();
-          cutSelected();
-          break;
-        case 'v':
-          e.preventDefault();
-          pasteClipboard();
-          break;
-        default:
-          break;
+        case 'a': e.preventDefault(); selectAll(); break;
+        case 'c': e.preventDefault(); copySelected(); break;
+        case 'x': e.preventDefault(); cutSelected(); break;
+        case 'v': e.preventDefault(); pasteClipboard(); break;
+        default: break;
       }
     };
     window.addEventListener('keydown', onKey);
@@ -401,9 +388,7 @@ export default function App() {
     setSelectedIds(new Set());
   }, []);
 
-  const toggleDarkMode = useCallback(() => {
-    setDarkMode(d => !d);
-  }, []);
+  const toggleDarkMode = useCallback(() => setDarkMode(d => !d), []);
 
   return (
     <div className={`app-shell ${darkMode ? 'dark' : ''}`}>
@@ -425,12 +410,18 @@ export default function App() {
           wiringFrom={wiringFrom}
           mousePos={mousePos}
           marquee={marquee}
+          editingLabelId={editingLabelId}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseDown={handleCanvasMouseDown}
           onCompMouseDown={handleCompMouseDown}
           onPinClick={handlePinClick}
           onToggle={toggleInput}
+          onPress={handlePress}
+          onRelease={handleRelease}
+          onLabelEdit={handleLabelEdit}
+          onLabelCommit={handleLabelCommit}
+          onLabelCancel={handleLabelCancel}
           onDrop={handleDrop}
           svgRef={svgRef}
         />
