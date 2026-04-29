@@ -4,6 +4,7 @@ import {
   PushButton, HighConstant, LowConstant, PullUp, PullDown,
   FourBitDigit, TriStateBuffer,
   SRFlipFlop, DFlipFlop, JKFlipFlop, TFlipFlop,
+  Mux2, Demux2, FullAdder, Register4,
   Label as LabelComp,
   asBool,
 } from '../engine/components.js';
@@ -20,6 +21,10 @@ export const PIN_R = 5;
 // Retorna { w, h } de acordo com o tipo do componente
 export function getCompSize(comp) {
   if (comp instanceof FourBitDigit) return { w: 88, h: 88 };
+  if (comp instanceof Register4) return { w: 120, h: 144 };
+  if (comp instanceof FullAdder) return { w: 110, h: 88 };
+  if (comp instanceof Mux2) return { w: 96, h: 88 };
+  if (comp instanceof Demux2) return { w: 96, h: 88 };
   if (comp instanceof SRFlipFlop || comp instanceof JKFlipFlop) return { w: 88, h: 76 };
   if (comp instanceof DFlipFlop || comp instanceof TFlipFlop) return { w: 88, h: 64 };
   if (comp instanceof TriStateBuffer) return { w: 96, h: 64 };
@@ -45,6 +50,22 @@ export function getPinPos(comp, pin) {
     if (pin === comp.inputs[0]) return { x: comp.x, y: comp.y + h / 2 };
     if (pin === comp.inputs[1]) return { x: comp.x + w / 2, y: comp.y };
     return { x: comp.x + w, y: comp.y + h / 2 };
+  }
+
+  // MUX 2:1 — A em cima-esquerda, B embaixo-esquerda, S embaixo-meio, Q direita-meio
+  if (comp instanceof Mux2) {
+    if (pin === comp.inputs[0]) return { x: comp.x, y: comp.y + h * 0.30 }; // A
+    if (pin === comp.inputs[1]) return { x: comp.x, y: comp.y + h * 0.62 }; // B
+    if (pin === comp.inputs[2]) return { x: comp.x + w / 2, y: comp.y + h }; // S (embaixo)
+    return { x: comp.x + w, y: comp.y + h / 2 }; // Q
+  }
+
+  // DEMUX 1:2 — In esquerda-meio, S embaixo, OutA direita-cima, OutB direita-baixo
+  if (comp instanceof Demux2) {
+    if (pin === comp.inputs[0]) return { x: comp.x, y: comp.y + h / 2 }; // In
+    if (pin === comp.inputs[1]) return { x: comp.x + w / 2, y: comp.y + h }; // S
+    if (pin === comp.outputs[0]) return { x: comp.x + w, y: comp.y + h * 0.30 }; // A
+    return { x: comp.x + w, y: comp.y + h * 0.62 }; // B
   }
 
   // Default
@@ -92,6 +113,10 @@ function CompNode({
         : comp instanceof DFlipFlop ? <FFBody comp={comp} title="D" leftLabels={['D']} />
         : comp instanceof JKFlipFlop ? <FFBody comp={comp} title="JK" leftLabels={['J','K']} />
         : comp instanceof TFlipFlop ? <FFBody comp={comp} title="T" leftLabels={['T']} />
+        : comp instanceof Mux2 ? <MuxBody comp={comp} />
+        : comp instanceof Demux2 ? <DemuxBody comp={comp} />
+        : comp instanceof FullAdder ? <AdderBody comp={comp} />
+        : comp instanceof Register4 ? <RegisterBody comp={comp} />
         : comp instanceof LabelComp ? <LabelBody comp={comp} onEdit={onLabelEdit} selected={selected} />
         : comp instanceof Gate ? <GateBody comp={comp} />
         : null
@@ -480,6 +505,212 @@ function FFBody({ comp, title, leftLabels }) {
           );
         }
         return null;
+      })()}
+    </>
+  );
+}
+
+function MuxBody({ comp }) {
+  const { w, h } = getCompSize(comp);
+  // Trapézio que estreita para a direita
+  const top = comp.y + 8;
+  const bot = comp.y + h - 14; // deixa espaço pro pino S embaixo
+  const taperTop = comp.y + h * 0.22;
+  const taperBot = comp.y + h * 0.70;
+  return (
+    <>
+      <path
+        d={`M ${comp.x + 4} ${top}
+            L ${comp.x + w - 4} ${taperTop}
+            L ${comp.x + w - 4} ${taperBot}
+            L ${comp.x + 4} ${bot} Z`}
+        fill="var(--comp-fill)" stroke="var(--comp-stroke)" strokeWidth="1.8" strokeLinejoin="round"
+      />
+      <text x={comp.x + w / 2 - 6} y={comp.y + h * 0.45 + 4}
+        textAnchor="middle" fill="var(--canvas-text)"
+        fontSize="11" fontWeight="700"
+        fontFamily="'JetBrains Mono', monospace"
+        style={{ pointerEvents: 'none' }}>
+        MUX
+      </text>
+      {/* Labels dos pinos de input */}
+      <text x={getPinPos(comp, comp.inputs[0]).x + 10} y={getPinPos(comp, comp.inputs[0]).y + 3}
+        fill="var(--canvas-text-dim)" fontSize="9" fontWeight="600"
+        fontFamily="'JetBrains Mono', monospace" style={{ pointerEvents: 'none' }}>A</text>
+      <text x={getPinPos(comp, comp.inputs[1]).x + 10} y={getPinPos(comp, comp.inputs[1]).y + 3}
+        fill="var(--canvas-text-dim)" fontSize="9" fontWeight="600"
+        fontFamily="'JetBrains Mono', monospace" style={{ pointerEvents: 'none' }}>B</text>
+      <text x={getPinPos(comp, comp.inputs[2]).x + 4} y={getPinPos(comp, comp.inputs[2]).y - 10}
+        fill="var(--canvas-text-dim)" fontSize="9" fontWeight="600"
+        fontFamily="'JetBrains Mono', monospace" style={{ pointerEvents: 'none' }}>S</text>
+      <text x={comp.x + w / 2} y={comp.y + h + 12}
+        textAnchor="middle" fill="var(--canvas-text-dim)" fontSize="9"
+        fontFamily="'JetBrains Mono', monospace"
+        style={{ pointerEvents: 'none' }}>
+        MUX 2:1
+      </text>
+    </>
+  );
+}
+
+function DemuxBody({ comp }) {
+  const { w, h } = getCompSize(comp);
+  // Trapézio invertido: estreito à esquerda, largo à direita
+  const top = comp.y + h * 0.22;
+  const bot = comp.y + h * 0.70;
+  const wideTop = comp.y + 8;
+  const wideBot = comp.y + h - 14;
+  return (
+    <>
+      <path
+        d={`M ${comp.x + 4} ${top}
+            L ${comp.x + w - 4} ${wideTop}
+            L ${comp.x + w - 4} ${wideBot}
+            L ${comp.x + 4} ${bot} Z`}
+        fill="var(--comp-fill)" stroke="var(--comp-stroke)" strokeWidth="1.8" strokeLinejoin="round"
+      />
+      <text x={comp.x + w / 2 - 6} y={comp.y + h * 0.45 + 4}
+        textAnchor="middle" fill="var(--canvas-text)"
+        fontSize="10" fontWeight="700"
+        fontFamily="'JetBrains Mono', monospace"
+        style={{ pointerEvents: 'none' }}>
+        DMX
+      </text>
+      <text x={getPinPos(comp, comp.inputs[0]).x + 10} y={getPinPos(comp, comp.inputs[0]).y + 3}
+        fill="var(--canvas-text-dim)" fontSize="8" fontWeight="600"
+        fontFamily="'JetBrains Mono', monospace" style={{ pointerEvents: 'none' }}>In</text>
+      <text x={getPinPos(comp, comp.inputs[1]).x + 4} y={getPinPos(comp, comp.inputs[1]).y - 10}
+        fill="var(--canvas-text-dim)" fontSize="9" fontWeight="600"
+        fontFamily="'JetBrains Mono', monospace" style={{ pointerEvents: 'none' }}>S</text>
+      <text x={getPinPos(comp, comp.outputs[0]).x - 10} y={getPinPos(comp, comp.outputs[0]).y + 3}
+        textAnchor="end" fill="var(--canvas-text-dim)" fontSize="9" fontWeight="600"
+        fontFamily="'JetBrains Mono', monospace" style={{ pointerEvents: 'none' }}>A</text>
+      <text x={getPinPos(comp, comp.outputs[1]).x - 10} y={getPinPos(comp, comp.outputs[1]).y + 3}
+        textAnchor="end" fill="var(--canvas-text-dim)" fontSize="9" fontWeight="600"
+        fontFamily="'JetBrains Mono', monospace" style={{ pointerEvents: 'none' }}>B</text>
+      <text x={comp.x + w / 2} y={comp.y + h + 12}
+        textAnchor="middle" fill="var(--canvas-text-dim)" fontSize="9"
+        fontFamily="'JetBrains Mono', monospace"
+        style={{ pointerEvents: 'none' }}>
+        DEMUX 1:2
+      </text>
+    </>
+  );
+}
+
+function AdderBody({ comp }) {
+  const { w, h } = getCompSize(comp);
+  return (
+    <>
+      <rect x={comp.x} y={comp.y} width={w} height={h} rx={4}
+        fill="var(--comp-fill)" stroke="var(--comp-stroke)" strokeWidth="1.8" />
+      {/* Símbolo Σ */}
+      <text x={comp.x + w / 2} y={comp.y + h / 2 + 10}
+        textAnchor="middle" fill="var(--canvas-text)"
+        fontSize="32" fontWeight="700"
+        fontFamily="serif"
+        style={{ pointerEvents: 'none' }}>
+        Σ
+      </text>
+      {/* Labels */}
+      {comp.inputs.map((pin) => {
+        const pos = getPinPos(comp, pin);
+        return (
+          <text key={pin.id} x={pos.x + 10} y={pos.y + 3}
+            fill="var(--canvas-text-dim)" fontSize="9" fontWeight="600"
+            fontFamily="'JetBrains Mono', monospace"
+            style={{ pointerEvents: 'none' }}>
+            {pin.name}
+          </text>
+        );
+      })}
+      {comp.outputs.map((pin) => {
+        const pos = getPinPos(comp, pin);
+        return (
+          <text key={pin.id} x={pos.x - 10} y={pos.y + 3}
+            textAnchor="end" fill="var(--canvas-text-dim)" fontSize="9" fontWeight="600"
+            fontFamily="'JetBrains Mono', monospace"
+            style={{ pointerEvents: 'none' }}>
+            {pin.name}
+          </text>
+        );
+      })}
+      <text x={comp.x + w / 2} y={comp.y + h + 12}
+        textAnchor="middle" fill="var(--canvas-text-dim)" fontSize="9"
+        fontFamily="'JetBrains Mono', monospace"
+        style={{ pointerEvents: 'none' }}>
+        FULL ADDER
+      </text>
+    </>
+  );
+}
+
+function RegisterBody({ comp }) {
+  const { w, h } = getCompSize(comp);
+  return (
+    <>
+      <rect x={comp.x} y={comp.y} width={w} height={h} rx={4}
+        fill="var(--comp-fill)" stroke="var(--comp-stroke)" strokeWidth="1.8" />
+      {/* Header */}
+      <rect x={comp.x} y={comp.y} width={w} height={20} rx={4}
+        fill="var(--accent-bg)"
+        style={{ pointerEvents: 'none' }} />
+      <text x={comp.x + w / 2} y={comp.y + 14}
+        textAnchor="middle" fill="var(--canvas-text)"
+        fontSize="11" fontWeight="700"
+        fontFamily="'JetBrains Mono', monospace"
+        style={{ pointerEvents: 'none' }}>
+        REG 4-bit
+      </text>
+      {/* Display do valor atual em hex no centro */}
+      <rect
+        x={comp.x + w / 2 - 18} y={comp.y + 36}
+        width={36} height={32} rx={3}
+        fill="#0f172a" stroke="var(--comp-stroke)" strokeWidth="1"
+        style={{ pointerEvents: 'none' }}
+      />
+      <text x={comp.x + w / 2} y={comp.y + 60}
+        textAnchor="middle" fill="#fde047"
+        fontSize="22" fontWeight="700"
+        fontFamily="'JetBrains Mono', monospace"
+        style={{ pointerEvents: 'none' }}>
+        {comp.hex}
+      </text>
+      {/* Labels dos pinos de entrada (4 dados + CLK + LOAD) */}
+      {comp.inputs.map((pin) => {
+        const pos = getPinPos(comp, pin);
+        return (
+          <text key={pin.id} x={pos.x + 10} y={pos.y + 3}
+            fill="var(--canvas-text-dim)" fontSize="8" fontWeight="600"
+            fontFamily="'JetBrains Mono', monospace"
+            style={{ pointerEvents: 'none' }}>
+            {pin.name}
+          </text>
+        );
+      })}
+      {/* Labels dos pinos de saída */}
+      {comp.outputs.map((pin) => {
+        const pos = getPinPos(comp, pin);
+        return (
+          <text key={pin.id} x={pos.x - 10} y={pos.y + 3}
+            textAnchor="end" fill="var(--canvas-text-dim)" fontSize="8" fontWeight="600"
+            fontFamily="'JetBrains Mono', monospace"
+            style={{ pointerEvents: 'none' }}>
+            {pin.name}
+          </text>
+        );
+      })}
+      {/* Triângulo de clock no pino CLK (índice 4) */}
+      {(() => {
+        const clkPin = comp.inputs[4];
+        const pos = getPinPos(comp, clkPin);
+        return (
+          <path
+            d={`M ${pos.x + 6} ${pos.y - 4} L ${pos.x + 12} ${pos.y} L ${pos.x + 6} ${pos.y + 4}`}
+            fill="none" stroke="var(--comp-stroke)" strokeWidth="1.4"
+            style={{ pointerEvents: 'none' }}
+          />
+        );
       })()}
     </>
   );

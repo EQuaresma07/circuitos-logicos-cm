@@ -6,6 +6,7 @@ import {
   PullUpSymbol, PullDownSymbol,
   LampSymbol, FourBitDigitSymbol, ClockSymbol,
   SRFFSymbol, DFFSymbol, JKFFSymbol, TFFSymbol,
+  MuxSymbol, DemuxSymbol, AdderSymbol, RegisterSymbol,
   LabelSymbol,
 } from './GateSymbols.jsx';
 
@@ -117,6 +118,21 @@ export default function Sidebar() {
         </PaletteItem>
         <PaletteItem type="T_FF" label="T Flip-Flop">
           <TFFSymbol width={56} height={48} />
+        </PaletteItem>
+      </Panel>
+
+      <Panel title="Abstraction">
+        <PaletteItem type="MUX2" label="MUX 2:1">
+          <MuxSymbol width={56} height={46} />
+        </PaletteItem>
+        <PaletteItem type="DEMUX2" label="DEMUX 1:2">
+          <DemuxSymbol width={56} height={46} />
+        </PaletteItem>
+        <PaletteItem type="ADDER" label="Full Adder">
+          <AdderSymbol width={56} height={46} />
+        </PaletteItem>
+        <PaletteItem type="REG4" label="Register 4-bit">
+          <RegisterSymbol width={60} height={52} />
         </PaletteItem>
       </Panel>
 

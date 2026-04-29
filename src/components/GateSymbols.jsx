@@ -338,6 +338,93 @@ export function TFFSymbol({ width = 64, height = 56, color = S, fillColor = F })
 }
 
 // ──────────────────────────────────────────────
+//  Abstraction (Mux, Demux, Adder, Register)
+// ──────────────────────────────────────────────
+
+// Trapézio característico de MUX
+export function MuxSymbol({ width = 70, height = 56, color = S, fillColor = F }) {
+  return (
+    <svg width={width} height={height} viewBox="0 0 70 56">
+      {/* Stubs de entrada */}
+      <line x1="6" y1="16" x2="14" y2="16" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="6" y1="32" x2="14" y2="32" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      {/* Stub de select (embaixo) */}
+      <line x1="35" y1="48" x2="35" y2="54" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      {/* Stub de saída */}
+      <line x1="56" y1="24" x2="64" y2="24" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      {/* Trapézio (mais largo na esquerda, estreito na direita) */}
+      <path
+        d="M 14 6 L 56 18 L 56 30 L 14 42 Z"
+        fill={fillColor} stroke={color} strokeWidth="1.8" strokeLinejoin="round"
+      />
+      {/* Texto MUX */}
+      <text x="34" y="27" textAnchor="middle" fill={color} fontSize="9" fontWeight="700" fontFamily="'JetBrains Mono', monospace">MUX</text>
+    </svg>
+  );
+}
+
+// Trapézio invertido para DEMUX (estreito à esquerda, largo à direita)
+export function DemuxSymbol({ width = 70, height = 56, color = S, fillColor = F }) {
+  return (
+    <svg width={width} height={height} viewBox="0 0 70 56">
+      <line x1="6" y1="24" x2="14" y2="24" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="35" y1="48" x2="35" y2="54" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="56" y1="16" x2="64" y2="16" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="56" y1="32" x2="64" y2="32" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <path
+        d="M 14 18 L 56 6 L 56 42 L 14 30 Z"
+        fill={fillColor} stroke={color} strokeWidth="1.8" strokeLinejoin="round"
+      />
+      <text x="34" y="27" textAnchor="middle" fill={color} fontSize="8" fontWeight="700" fontFamily="'JetBrains Mono', monospace">DMX</text>
+    </svg>
+  );
+}
+
+// Full Adder: caixa com sigla Σ
+export function AdderSymbol({ width = 70, height = 56, color = S, fillColor = F }) {
+  return (
+    <svg width={width} height={height} viewBox="0 0 70 56">
+      {/* Stubs entrada */}
+      <line x1="6" y1="14" x2="14" y2="14" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="6" y1="28" x2="14" y2="28" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="6" y1="42" x2="14" y2="42" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      {/* Stubs saída */}
+      <line x1="56" y1="20" x2="64" y2="20" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="56" y1="36" x2="64" y2="36" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      {/* Body */}
+      <rect x="14" y="6" width="42" height="44" rx="3" fill={fillColor} stroke={color} strokeWidth="1.8" />
+      {/* Símbolo Σ */}
+      <text x="35" y="33" textAnchor="middle" fill={color} fontSize="20" fontWeight="700" fontFamily="serif">Σ</text>
+    </svg>
+  );
+}
+
+// Register 4-bit
+export function RegisterSymbol({ width = 76, height = 64, color = S, fillColor = F }) {
+  return (
+    <svg width={width} height={height} viewBox="0 0 76 64">
+      {/* 4 stubs de dados à esquerda */}
+      <line x1="6" y1="10" x2="14" y2="10" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="6" y1="20" x2="14" y2="20" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="6" y1="30" x2="14" y2="30" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="6" y1="40" x2="14" y2="40" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      {/* CLK e LOAD à esquerda (mais embaixo) */}
+      <line x1="6" y1="50" x2="14" y2="50" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="6" y1="58" x2="14" y2="58" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      {/* 4 stubs de saída à direita */}
+      <line x1="62" y1="10" x2="70" y2="10" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="62" y1="20" x2="70" y2="20" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="62" y1="30" x2="70" y2="30" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="62" y1="40" x2="70" y2="40" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      {/* Body */}
+      <rect x="14" y="4" width="48" height="58" rx="3" fill={fillColor} stroke={color} strokeWidth="1.8" />
+      <text x="38" y="22" textAnchor="middle" fill={color} fontSize="9" fontWeight="700" fontFamily="'JetBrains Mono', monospace">REG</text>
+      <text x="38" y="34" textAnchor="middle" fill={color} fontSize="9" fontWeight="700" fontFamily="'JetBrains Mono', monospace">4-bit</text>
+    </svg>
+  );
+}
+
+// ──────────────────────────────────────────────
 //  Other
 // ──────────────────────────────────────────────
 

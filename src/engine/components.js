@@ -310,6 +310,132 @@ export class TFlipFlop extends EdgeFlipFlop {
 }
 
 // ════════════════════════════════════════════════════════════
+//  Abstraction Components (Mux/Demux/Adder/Register)
+// ════════════════════════════════════════════════════════════
+
+// Multiplexador 2:1 — Select=0 → A, Select=1 → B
+// Preserva HIGH-Z do canal selecionado para se comportar bem com Pull/TriState.
+export class Mux2 extends Component {
+  constructor(id) {
+    super(id, 'MUX2', 'MUX');
+    this.inputs.push(new Pin(`${id}_in_a`, 'A',   'input', this));
+    this.inputs.push(new Pin(`${id}_in_b`, 'B',   'input', this));
+    this.inputs.push(new Pin(`${id}_in_s`, 'S',   'input', this));
+    this.outputs.push(new Pin(`${id}_out`, 'Q', 'output', this));
+  }
+  evaluate() {
+    const s = asBool(this.inputs[2].value);
+    const chosen = s ? this.inputs[1].value : this.inputs[0].value;
+    // Se o canal escolhido está em HIGH-Z (null/undefined), propaga HIGH-Z
+    if (chosen === null || chosen === undefined) {
+      this.outputs[0].value = null;
+    } else {
+      this.outputs[0].value = !!chosen;
+    }
+  }
+}
+
+// Demultiplexador 1:2 — Select=0 → OutA recebe In, OutB=HIGH-Z
+//                       Select=1 → OutB recebe In, OutA=HIGH-Z
+export class Demux2 extends Component {
+  constructor(id) {
+    super(id, 'DEMUX2', 'DEMUX');
+    this.inputs.push(new Pin(`${id}_in`,    'In',  'input', this));
+    this.inputs.push(new Pin(`${id}_in_s`,  'S',   'input', this));
+    this.outputs.push(new Pin(`${id}_out_a`, 'A', 'output', this));
+    this.outputs.push(new Pin(`${id}_out_b`, 'B', 'output', this));
+  }
+  evaluate() {
+    const s = asBool(this.inputs[1].value);
+    const inV = this.inputs[0].value;
+    // Se input está em HIGH-Z, propaga para a saída ativa também
+    const passthrough = (inV === null || inV === undefined) ? null : !!inV;
+    if (s) {
+      this.outputs[0].value = null;        // A em HIGH-Z
+      this.outputs[1].value = passthrough; // B recebe
+    } else {
+      this.outputs[0].value = passthrough; // A recebe
+      this.outputs[1].value = null;        // B em HIGH-Z
+    }
+  }
+}
+
+// Full Adder — A, B, Cin → Sum, Cout
+// Sum  = A XOR B XOR Cin
+// Cout = (A AND B) OR (Cin AND (A XOR B))
+export class FullAdder extends Component {
+  constructor(id) {
+    super(id, 'ADDER', 'ADD');
+    this.inputs.push(new Pin(`${id}_in_a`,    'A',    'input', this));
+    this.inputs.push(new Pin(`${id}_in_b`,    'B',    'input', this));
+    this.inputs.push(new Pin(`${id}_in_cin`,  'Cin',  'input', this));
+    this.outputs.push(new Pin(`${id}_out_s`,    'S',    'output', this));
+    this.outputs.push(new Pin(`${id}_out_cout`, 'Cout', 'output', this));
+  }
+  evaluate() {
+    const a   = asBool(this.inputs[0].value);
+    const b   = asBool(this.inputs[1].value);
+    const cin = asBool(this.inputs[2].value);
+    const aXorB = a !== b;
+    const sum  = aXorB !== cin;             // A XOR B XOR Cin
+    const cout = (a && b) || (cin && aXorB); // carry
+    this.outputs[0].value = sum;
+    this.outputs[1].value = cout;
+  }
+}
+
+// Registrador de 4 bits — agrupa internamente 4 D Flip-Flops
+// Inputs:  D0..D3 (4), CLK (1), LOAD (1) — total 6
+// Outputs: Q0..Q3 (4)
+// Comportamento: na borda de subida do CLK, se LOAD=1 → captura D0..D3
+//                Se LOAD=0 → mantém valor anterior (hold)
+export class Register4 extends Component {
+  constructor(id) {
+    super(id, 'REG4', 'REG');
+    // Ordem: D0 (LSB) → D3 (MSB) para alinhar com Q0..Q3
+    for (let i = 0; i < 4; i++) {
+      this.inputs.push(new Pin(`${id}_in_d${i}`, `D${i}`, 'input', this));
+    }
+    this.inputs.push(new Pin(`${id}_in_clk`,  'CLK',  'input', this));
+    this.inputs.push(new Pin(`${id}_in_load`, 'LOAD', 'input', this));
+
+    for (let i = 0; i < 4; i++) {
+      this.outputs.push(new Pin(`${id}_out_q${i}`, `Q${i}`, 'output', this));
+    }
+
+    // Estado interno: 4 D flip-flops
+    this._flops = [false, false, false, false];
+    this._lastClk = false;
+  }
+
+  evaluate() {
+    const clkNow = asBool(this.inputs[4].value);
+    const load   = asBool(this.inputs[5].value);
+    const rising = clkNow && !this._lastClk;
+    this._lastClk = clkNow;
+
+    if (rising && load) {
+      for (let i = 0; i < 4; i++) {
+        this._flops[i] = asBool(this.inputs[i].value);
+      }
+    }
+    // Caso contrário: hold
+
+    for (let i = 0; i < 4; i++) {
+      this.outputs[i].value = this._flops[i];
+    }
+  }
+
+  // Helper para inspeção (debug/UI)
+  get value() {
+    return this._flops.reduce((acc, bit, i) => acc + (bit ? (1 << i) : 0), 0);
+  }
+  get hex() {
+    return this.value.toString(16).toUpperCase();
+  }
+}
+
+// ════════════════════════════════════════════════════════════
 //  Other
 // ════════════════════════════════════════════════════════════
 
@@ -353,6 +479,10 @@ export function createComponent(type, id) {
     case 'D_FF':      return new DFlipFlop(cid);
     case 'JK_FF':     return new JKFlipFlop(cid);
     case 'T_FF':      return new TFlipFlop(cid);
+    case 'MUX2':      return new Mux2(cid);
+    case 'DEMUX2':    return new Demux2(cid);
+    case 'ADDER':     return new FullAdder(cid);
+    case 'REG4':      return new Register4(cid);
     case 'LABEL':     return new Label(cid);
     // Logic gates (incluindo Buffer)
     case 'AND':
