@@ -507,6 +507,215 @@ body.dark .palette-item-icon svg {
 .statusbar-spacer { flex: 1; }
 
 /* ════════════════════════════════════════════════════════════
+   Dropdown menus
+   ════════════════════════════════════════════════════════════ */
+
+.menu-dropdown {
+  position: relative;
+}
+
+.menu-item.open {
+  background: var(--bg-chrome-soft);
+  color: var(--text-chrome);
+}
+
+.dropdown-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 240px;
+  background: var(--bg-chrome-hi);
+  border: 1px solid var(--border-chrome);
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  z-index: 1000;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px 6px 6px;
+  background: transparent;
+  border: none;
+  color: var(--text-chrome);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  text-align: left;
+  border-radius: 4px;
+  transition: background .08s;
+}
+
+.dropdown-item:hover:not(.disabled) {
+  background: var(--accent-bg);
+  color: var(--accent-hi);
+}
+
+.dropdown-item.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  color: var(--text-chrome-mute);
+}
+
+.dropdown-item.disabled:hover {
+  background: transparent;
+}
+
+.dropdown-check {
+  width: 14px;
+  font-size: 11px;
+  color: var(--accent);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.dropdown-label {
+  flex: 1;
+}
+
+.dropdown-shortcut {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-chrome-mute);
+  margin-left: 12px;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: var(--border-chrome-soft);
+  margin: 4px -4px;
+}
+
+/* ════════════════════════════════════════════════════════════
+   Tool buttons (toolbar inferior)
+   ════════════════════════════════════════════════════════════ */
+
+.tool-btn.active {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: var(--accent-hi);
+}
+
+.tool-btn.paused {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+
+/* ════════════════════════════════════════════════════════════
+   Pan cursor
+   ════════════════════════════════════════════════════════════ */
+
+.canvas-wrapper.pan-cursor {
+  cursor: grab;
+}
+
+.canvas-wrapper.pan-cursor:active {
+  cursor: grabbing;
+}
+
+.canvas-wrapper.pan-cursor .canvas-svg {
+  cursor: inherit;
+}
+
+/* ════════════════════════════════════════════════════════════
+   Modal (About dialog)
+   ════════════════════════════════════════════════════════════ */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(4px);
+}
+
+.modal-card {
+  position: relative;
+  background: var(--bg-chrome-hi);
+  border: 1px solid var(--border-chrome);
+  border-radius: 12px;
+  padding: 32px 36px;
+  max-width: 480px;
+  width: 90%;
+  color: var(--text-chrome);
+  font-family: var(--font-sans);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.modal-close {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  color: var(--text-chrome-dim);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background .12s;
+}
+
+.modal-close:hover {
+  background: var(--bg-chrome-soft);
+  color: var(--text-chrome);
+}
+
+.modal-title {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+  color: var(--text-chrome);
+}
+
+.modal-version {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-chrome-mute);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0 0 16px 0;
+}
+
+.modal-text {
+  font-size: 13px;
+  color: var(--text-chrome-dim);
+  line-height: 1.6;
+  margin: 0 0 16px 0;
+}
+
+.modal-list {
+  font-size: 12px;
+  color: var(--text-chrome-dim);
+  line-height: 1.7;
+  padding-left: 18px;
+  margin: 0 0 20px 0;
+}
+
+.modal-list li {
+  margin-bottom: 4px;
+}
+
+.modal-footer {
+  font-size: 11px;
+  color: var(--text-chrome-mute);
+  font-family: var(--font-mono);
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-chrome-soft);
+}
+
+/* ════════════════════════════════════════════════════════════
    Responsive
    ════════════════════════════════════════════════════════════ */
 

@@ -1,11 +1,24 @@
 import React from 'react';
 
-export default function StatusBar({ componentCount, wireCount, wiringFrom, selectionCount }) {
+export default function StatusBar({
+  componentCount, wireCount, wiringFrom, selectionCount,
+  currentTool, simulationPaused, filename,
+}) {
   return (
     <footer className="statusbar">
       <div className="status-group">
-        <span className="status-dot active" />
-        <span>Ready</span>
+        <span className={`status-dot ${simulationPaused ? '' : 'active'}`} />
+        <span>{simulationPaused ? 'Paused' : 'Ready'}</span>
+      </div>
+      <div className="status-sep" />
+      <div className="status-group">
+        <span className="status-label">Tool:</span>
+        <span className="status-value">{currentTool === 'pan' ? 'Pan' : 'Select'}</span>
+      </div>
+      <div className="status-sep" />
+      <div className="status-group">
+        <span className="status-label">File:</span>
+        <span className="status-value">{filename || 'untitled'}</span>
       </div>
       <div className="status-sep" />
       <div className="status-group">
@@ -31,12 +44,12 @@ export default function StatusBar({ componentCount, wireCount, wiringFrom, selec
 
       {wiringFrom && (
         <div className="status-group highlight">
-          <span>⚡ Wiring — click on destination pin (ESC to cancel)</span>
+          <span>⚡ Wiring — click destination pin (ESC to cancel)</span>
         </div>
       )}
       {!wiringFrom && (
         <div className="status-group muted">
-          <span>Click pin to start wire · drag empty area to multi-select</span>
+          <span>{currentTool === 'pan' ? 'Drag canvas to pan' : 'Click pin to wire · drag empty area to multi-select'}</span>
         </div>
       )}
     </footer>

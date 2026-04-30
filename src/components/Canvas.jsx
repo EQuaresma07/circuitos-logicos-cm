@@ -18,8 +18,8 @@ export const COMP_W = 96;
 export const COMP_H = 56;
 export const PIN_R = 5;
 
-// Retorna { w, h } de acordo com o tipo do componente
-export function getCompSize(comp) {
+// Retorna { w, h } sem rotação
+function getCompSizeRaw(comp) {
   if (comp instanceof FourBitDigit) return { w: 88, h: 88 };
   if (comp instanceof Register4) return { w: 120, h: 144 };
   if (comp instanceof FullAdder) return { w: 110, h: 88 };
@@ -34,52 +34,92 @@ export function getCompSize(comp) {
   return { w: COMP_W, h: COMP_H };
 }
 
+// Retorna { w, h } considerando rotação (90/270 trocam w/h)
+export function getCompSize(comp) {
+  const raw = getCompSizeRaw(comp);
+  const r = comp.rotation || 0;
+  if (r === 90 || r === 270) return { w: raw.h, h: raw.w };
+  return raw;
+}
+
+// Aplica rotação a um ponto local (relativo a 0,0 do componente não rotacionado)
+// Retorna ponto local relativo ao bounding box rotacionado
+function rotateLocal(px, py, w, h, rotation) {
+  switch (rotation) {
+    case 90:  return { x: h - py, y: px };       // sentido horário 90°
+    case 180: return { x: w - px, y: h - py };
+    case 270: return { x: py,     y: w - px };
+    default:  return { x: px,     y: py };
+  }
+}
+
 const GATE_SYMBOL_MAP = {
   AND: ANDSymbol, OR: ORSymbol, NOT: NOTSymbol,
   NAND: NANDSymbol, NOR: NORSymbol, XOR: XORSymbol, XNOR: XNORSymbol,
   BUFFER: BufferSymbol,
 };
 
-// ── Posição de pinos ──
-// Posições especiais para componentes com layout não-padrão.
-export function getPinPos(comp, pin) {
-  const { w, h } = getCompSize(comp);
+// Retorna posição local do pino (relativa ao componente, sem rotação)
+function getPinPosLocal(comp, pin) {
+  const { w, h } = getCompSizeRaw(comp);
 
-  // Tri-state: data à esquerda, enable em cima, output à direita
   if (comp instanceof TriStateBuffer) {
-    if (pin === comp.inputs[0]) return { x: comp.x, y: comp.y + h / 2 };
-    if (pin === comp.inputs[1]) return { x: comp.x + w / 2, y: comp.y };
-    return { x: comp.x + w, y: comp.y + h / 2 };
+    if (pin === comp.inputs[0]) return { x: 0, y: h / 2 };
+    if (pin === comp.inputs[1]) return { x: w / 2, y: 0 };
+    return { x: w, y: h / 2 };
   }
 
-  // MUX 2:1 — A em cima-esquerda, B embaixo-esquerda, S embaixo-meio, Q direita-meio
   if (comp instanceof Mux2) {
-    if (pin === comp.inputs[0]) return { x: comp.x, y: comp.y + h * 0.30 }; // A
-    if (pin === comp.inputs[1]) return { x: comp.x, y: comp.y + h * 0.62 }; // B
-    if (pin === comp.inputs[2]) return { x: comp.x + w / 2, y: comp.y + h }; // S (embaixo)
-    return { x: comp.x + w, y: comp.y + h / 2 }; // Q
+    if (pin === comp.inputs[0]) return { x: 0, y: h * 0.30 };
+    if (pin === comp.inputs[1]) return { x: 0, y: h * 0.62 };
+    if (pin === comp.inputs[2]) return { x: w / 2, y: h };
+    return { x: w, y: h / 2 };
   }
 
-  // DEMUX 1:2 — In esquerda-meio, S embaixo, OutA direita-cima, OutB direita-baixo
   if (comp instanceof Demux2) {
-    if (pin === comp.inputs[0]) return { x: comp.x, y: comp.y + h / 2 }; // In
-    if (pin === comp.inputs[1]) return { x: comp.x + w / 2, y: comp.y + h }; // S
-    if (pin === comp.outputs[0]) return { x: comp.x + w, y: comp.y + h * 0.30 }; // A
-    return { x: comp.x + w, y: comp.y + h * 0.62 }; // B
+    if (pin === comp.inputs[0]) return { x: 0, y: h / 2 };
+    if (pin === comp.inputs[1]) return { x: w / 2, y: h };
+    if (pin === comp.outputs[0]) return { x: w, y: h * 0.30 };
+    return { x: w, y: h * 0.62 };
   }
 
-  // Default
   const idx = comp.inputs.indexOf(pin);
   if (idx >= 0) {
     const step = h / (comp.inputs.length + 1);
-    return { x: comp.x, y: comp.y + step * (idx + 1) };
+    return { x: 0, y: step * (idx + 1) };
   }
   const oidx = comp.outputs.indexOf(pin);
   if (oidx >= 0) {
     const step = h / (comp.outputs.length + 1);
-    return { x: comp.x + w, y: comp.y + step * (oidx + 1) };
+    return { x: w, y: step * (oidx + 1) };
   }
-  return { x: comp.x, y: comp.y };
+  return { x: 0, y: 0 };
+}
+
+// ── Posição global de pinos (com rotação aplicada) ──
+export function getPinPos(comp, pin) {
+  const local = getPinPosLocal(comp, pin);
+  const raw = getCompSizeRaw(comp);
+  const rot = comp.rotation || 0;
+  const rotated = rotateLocal(local.x, local.y, raw.w, raw.h, rot);
+  return { x: comp.x + rotated.x, y: comp.y + rotated.y };
+}
+
+// Determina a "direção" do pino após rotação
+function getPinSide(comp, pin) {
+  const local = getPinPosLocal(comp, pin);
+  const raw = getCompSizeRaw(comp);
+  let side;
+  if (Math.abs(local.x) < 1) side = 'left';
+  else if (Math.abs(local.x - raw.w) < 1) side = 'right';
+  else if (Math.abs(local.y) < 1) side = 'top';
+  else side = 'bottom';
+  const rot = comp.rotation || 0;
+  if (rot === 0) return side;
+  const cw = { left: 'top', top: 'right', right: 'bottom', bottom: 'left' };
+  let result = side;
+  for (let i = 0; i < rot / 90; i++) result = cw[result];
+  return result;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -91,6 +131,31 @@ function CompNode({
   onPress, onRelease, onLabelEdit,
 }) {
   const { w, h } = getCompSize(comp);
+  const raw = getCompSizeRaw(comp);
+  const rot = comp.rotation || 0;
+
+  // O body sempre é desenhado em coordenadas "não rotacionadas" relativas a (0,0)
+  // depois aplicamos transform de rotação + translação para a posição global.
+  // Cálculo: rotação em torno do centro do componente (raw.w/2, raw.h/2),
+  // depois translade para que o bbox rotacionado fique em (comp.x, comp.y).
+  const cx = raw.w / 2;
+  const cy = raw.h / 2;
+  // Após rotação, o offset do bbox muda. Calculamos onde fica o (0,0) original
+  // em coords rotacionadas e ajustamos com translação.
+  let tx, ty;
+  if (rot === 90) { tx = h; ty = 0; }      // após rotação, w_novo = h_velho
+  else if (rot === 180) { tx = w; ty = h; }
+  else if (rot === 270) { tx = 0; ty = w; }
+  else { tx = 0; ty = 0; }
+
+  // Bodies usam coordenadas baseadas em comp.x e comp.y já. Para rotacionar,
+  // preciso de um sistema separado: o body é desenhado como se comp.x=0,comp.y=0
+  // e raw.w x raw.h, e aplicamos transform.
+  // Solução: vou usar um <g transform> que primeiro translada ao canto rotacionado
+  // e depois rotaciona.
+
+  // transform = "translate(comp.x + tx, comp.y + ty) rotate(rot)"
+  const bodyTransform = `translate(${comp.x + tx}, ${comp.y + ty}) rotate(${rot})`;
 
   return (
     <g
@@ -98,31 +163,12 @@ function CompNode({
       style={{ cursor: comp instanceof LabelComp ? 'move' : 'grab' }}
       data-comp="true"
     >
-      {/* Body por tipo */}
-      {comp instanceof InputSwitch ? <InputBody comp={comp} onToggle={onToggle} />
-        : comp instanceof PushButton ? <PushButtonBody comp={comp} onPress={onPress} onRelease={onRelease} />
-        : comp instanceof HighConstant ? <ConstantBody comp={comp} value="1" />
-        : comp instanceof LowConstant ? <ConstantBody comp={comp} value="0" />
-        : comp instanceof PullUp ? <PullBody comp={comp} kind="up" />
-        : comp instanceof PullDown ? <PullBody comp={comp} kind="down" />
-        : comp instanceof Clock ? <ClockBody comp={comp} />
-        : comp instanceof OutputProbe ? <OutputBody comp={comp} />
-        : comp instanceof FourBitDigit ? <DigitBody comp={comp} />
-        : comp instanceof TriStateBuffer ? <TriStateBody comp={comp} />
-        : comp instanceof SRFlipFlop ? <FFBody comp={comp} title="SR" leftLabels={['S','R']} />
-        : comp instanceof DFlipFlop ? <FFBody comp={comp} title="D" leftLabels={['D']} />
-        : comp instanceof JKFlipFlop ? <FFBody comp={comp} title="JK" leftLabels={['J','K']} />
-        : comp instanceof TFlipFlop ? <FFBody comp={comp} title="T" leftLabels={['T']} />
-        : comp instanceof Mux2 ? <MuxBody comp={comp} />
-        : comp instanceof Demux2 ? <DemuxBody comp={comp} />
-        : comp instanceof FullAdder ? <AdderBody comp={comp} />
-        : comp instanceof Register4 ? <RegisterBody comp={comp} />
-        : comp instanceof LabelComp ? <LabelBody comp={comp} onEdit={onLabelEdit} selected={selected} />
-        : comp instanceof Gate ? <GateBody comp={comp} />
-        : null
-      }
+      {/* Body rotacionado: desenhado como se comp estivesse em (0,0) e sem rotação */}
+      <g transform={bodyTransform}>
+        <RotatedBody comp={comp} onToggle={onToggle} onPress={onPress} onRelease={onRelease} onLabelEdit={onLabelEdit} selected={selected} />
+      </g>
 
-      {/* Pinos genéricos (Label não tem) */}
+      {/* Pinos: posições GLOBAIS já calculadas com rotação */}
       {!(comp instanceof LabelComp) && (
         <>
           {comp.inputs.map((pin) => <PinDot key={pin.id} pin={pin} comp={comp} side="in" onPinClick={onPinClick} />)}
@@ -130,7 +176,7 @@ function CompNode({
         </>
       )}
 
-      {/* Outline de seleção */}
+      {/* Outline de seleção (em torno do bbox rotacionado) */}
       {selected && (
         <rect
           x={comp.x - 6} y={comp.y - 6}
@@ -147,28 +193,60 @@ function CompNode({
   );
 }
 
+// Wrapper que renderiza o body certo. Os bodies usam coordenadas relativas
+// onde o componente está em (0,0) e tem dimensões raw (não rotacionadas).
+function RotatedBody({ comp, onToggle, onPress, onRelease, onLabelEdit, selected }) {
+  // Cria uma versão "fake" do componente com x=0, y=0 para os bodies usarem
+  // Cuidado: NÃO mutar comp original. Usamos um proxy somente para leitura.
+  const localComp = Object.create(comp);
+  localComp.x = 0;
+  localComp.y = 0;
+
+  return (
+    <>
+      {comp instanceof InputSwitch ? <InputBody comp={localComp} onToggle={() => onToggle(comp.id)} />
+        : comp instanceof PushButton ? <PushButtonBody comp={localComp} onPress={() => onPress(comp.id)} onRelease={() => onRelease(comp.id)} />
+        : comp instanceof HighConstant ? <ConstantBody comp={localComp} value="1" />
+        : comp instanceof LowConstant ? <ConstantBody comp={localComp} value="0" />
+        : comp instanceof PullUp ? <PullBody comp={localComp} kind="up" />
+        : comp instanceof PullDown ? <PullBody comp={localComp} kind="down" />
+        : comp instanceof Clock ? <ClockBody comp={localComp} />
+        : comp instanceof OutputProbe ? <OutputBody comp={localComp} />
+        : comp instanceof FourBitDigit ? <DigitBody comp={localComp} />
+        : comp instanceof TriStateBuffer ? <TriStateBody comp={localComp} />
+        : comp instanceof SRFlipFlop ? <FFBody comp={localComp} title="SR" leftLabels={['S','R']} />
+        : comp instanceof DFlipFlop ? <FFBody comp={localComp} title="D" leftLabels={['D']} />
+        : comp instanceof JKFlipFlop ? <FFBody comp={localComp} title="JK" leftLabels={['J','K']} />
+        : comp instanceof TFlipFlop ? <FFBody comp={localComp} title="T" leftLabels={['T']} />
+        : comp instanceof Mux2 ? <MuxBody comp={localComp} />
+        : comp instanceof Demux2 ? <DemuxBody comp={localComp} />
+        : comp instanceof FullAdder ? <AdderBody comp={localComp} />
+        : comp instanceof Register4 ? <RegisterBody comp={localComp} />
+        : comp instanceof LabelComp ? <LabelBody comp={localComp} onEdit={() => onLabelEdit(comp.id)} selected={selected} />
+        : comp instanceof Gate ? <GateBody comp={localComp} />
+        : null
+      }
+    </>
+  );
+}
+
 // ── Pino genérico ──
 function PinDot({ pin, comp, side, onPinClick }) {
   const pos = getPinPos(comp, pin);
-  const isInput = side === 'in';
-
-  // Determinar direção do stub baseado em onde o pino está
-  const { w } = getCompSize(comp);
+  // Determina direção do stub de acordo com o lado lógico (após rotação)
+  const pinSide = getPinSide(comp, pin);
   let dx = 0, dy = 0;
-  if (Math.abs(pos.x - comp.x) < 2) { dx = 8; }              // pino à esquerda
-  else if (Math.abs(pos.x - (comp.x + w)) < 2) { dx = -8; }  // pino à direita
-  else if (pos.y < comp.y + 4) { dy = 8; }                   // pino em cima
-  else { dy = -8; }                                          // pino embaixo
-
-  // Cor: HIGH-Z = roxo claro, true = accent, false = comp-fill
-  let fill;
-  if (pin.value === null || pin.value === undefined) {
-    fill = '#a78bfa'; // HIGH-Z
-  } else if (pin.value) {
-    fill = 'var(--accent)';
-  } else {
-    fill = 'var(--comp-fill)';
+  switch (pinSide) {
+    case 'left':   dx = 8;  break;
+    case 'right':  dx = -8; break;
+    case 'top':    dy = 8;  break;
+    case 'bottom': dy = -8; break;
   }
+
+  let fill;
+  if (pin.value === null || pin.value === undefined) fill = '#a78bfa';
+  else if (pin.value) fill = 'var(--accent)';
+  else fill = 'var(--comp-fill)';
 
   return (
     <g>
@@ -847,6 +925,7 @@ function LabelEditor({ comp, svgRef, onCommit, onCancel }) {
 export default function Canvas({
   components, wires, selectedIds, wiringFrom, mousePos, marquee,
   editingLabelId,
+  viewBox, showGrid, currentTool,
   onMouseMove, onMouseUp, onMouseDown,
   onCompMouseDown, onPinClick, onToggle,
   onPress, onRelease,
@@ -907,11 +986,17 @@ export default function Canvas({
 
   const editingComp = editingLabelId ? components.find(c => c.id === editingLabelId) : null;
 
+  const vb = viewBox || { x: 0, y: 0, w: 1200, h: 700 };
+  const vbStr = `${vb.x} ${vb.y} ${vb.w} ${vb.h}`;
+  const cursorClass = currentTool === 'pan' ? 'pan-cursor' : '';
+
   return (
-    <div className="canvas-wrapper" onDragOver={handleDragOver} onDrop={handleDrop}>
+    <div className={`canvas-wrapper ${cursorClass}`} onDragOver={handleDragOver} onDrop={handleDrop}>
       <svg
         ref={svgRef}
         className="canvas-svg"
+        viewBox={vbStr}
+        preserveAspectRatio="xMidYMid meet"
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
         onMouseDown={onMouseDown}
@@ -922,8 +1007,17 @@ export default function Canvas({
             <circle cx="10" cy="10" r="0.7" fill="var(--grid-dot)" />
           </pattern>
         </defs>
-        <rect data-bg="true" width="100%" height="100%" fill="var(--canvas-bg)" />
-        <rect data-bg="true" width="100%" height="100%" fill="url(#grid-pattern)" />
+        {/* Background cobrindo área muito maior que o viewBox para suportar pan */}
+        <rect data-bg="true"
+          x={vb.x - 5000} y={vb.y - 5000}
+          width={vb.w + 10000} height={vb.h + 10000}
+          fill="var(--canvas-bg)" />
+        {showGrid && (
+          <rect data-bg="true"
+            x={vb.x - 5000} y={vb.y - 5000}
+            width={vb.w + 10000} height={vb.h + 10000}
+            fill="url(#grid-pattern)" />
+        )}
 
         {wires.map(w => <WirePath key={w.id} wire={w} />)}
         {wiringPreview}
@@ -946,21 +1040,20 @@ export default function Canvas({
 
         {components.length === 0 && (
           <g style={{ pointerEvents: 'none' }}>
-            <text x="50%" y="48%" textAnchor="middle"
+            <text x={vb.x + vb.w / 2} y={vb.y + vb.h * 0.48} textAnchor="middle"
               fill="var(--canvas-text-dim)" fontSize="14"
               fontFamily="'Inter', sans-serif" fontWeight="500">
               Drag components from the sidebar to start
             </text>
-            <text x="50%" y="53%" textAnchor="middle"
+            <text x={vb.x + vb.w / 2} y={vb.y + vb.h * 0.53} textAnchor="middle"
               fill="var(--canvas-text-mute)" fontSize="11"
               fontFamily="'Inter', sans-serif">
-              or load a preset from the toolbar
+              or open a saved circuit (Ctrl+O)
             </text>
           </g>
         )}
       </svg>
 
-      {/* Editor de Label flutuante */}
       {editingComp && (
         <LabelEditor
           comp={editingComp}

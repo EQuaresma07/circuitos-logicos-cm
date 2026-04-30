@@ -39,6 +39,7 @@ export class Component {
     this.outputs = [];
     this.x = 0;
     this.y = 0;
+    this.rotation = 0; // 0, 90, 180, 270 (graus)
   }
   evaluate() { /* override */ }
 }
@@ -484,7 +485,6 @@ export function createComponent(type, id) {
     case 'ADDER':     return new FullAdder(cid);
     case 'REG4':      return new Register4(cid);
     case 'LABEL':     return new Label(cid);
-    // Logic gates (incluindo Buffer)
     case 'AND':
     case 'OR':
     case 'NOT':
@@ -495,5 +495,104 @@ export function createComponent(type, id) {
     case 'BUFFER':    return new Gate(cid, type);
     default:
       throw new Error(`Unknown component type: ${type}`);
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  Serialization (Save/Open)
+// ════════════════════════════════════════════════════════════
+
+// Identifica o tipo string a partir de uma instância
+function typeOfInstance(c) {
+  if (c instanceof InputSwitch) return 'INPUT';
+  if (c instanceof PushButton) return 'BUTTON';
+  if (c instanceof HighConstant) return 'HIGH';
+  if (c instanceof LowConstant) return 'LOW';
+  if (c instanceof PullUp) return 'PULLUP';
+  if (c instanceof PullDown) return 'PULLDOWN';
+  if (c instanceof Clock) return 'CLOCK';
+  if (c instanceof OutputProbe) return 'OUTPUT';
+  if (c instanceof FourBitDigit) return 'DIGIT4';
+  if (c instanceof TriStateBuffer) return 'TRISTATE';
+  if (c instanceof SRFlipFlop) return 'SR_FF';
+  if (c instanceof DFlipFlop) return 'D_FF';
+  if (c instanceof JKFlipFlop) return 'JK_FF';
+  if (c instanceof TFlipFlop) return 'T_FF';
+  if (c instanceof Mux2) return 'MUX2';
+  if (c instanceof Demux2) return 'DEMUX2';
+  if (c instanceof FullAdder) return 'ADDER';
+  if (c instanceof Register4) return 'REG4';
+  if (c instanceof Label) return 'LABEL';
+  if (c instanceof Gate) return c.type;
+  return 'UNKNOWN';
+}
+
+export function serializeCircuit(components, wires) {
+  return {
+    version: 1,
+    components: components.map(c => ({
+      id: c.id,
+      type: typeOfInstance(c),
+      label: c.label,
+      x: c.x,
+      y: c.y,
+      rotation: c.rotation || 0,
+      // Estado específico
+      state: c.state,
+      text: c.text,
+      width: c.width,
+      height: c.height,
+      periodMs: c.periodMs,
+    })),
+    wires: wires.map(w => ({
+      id: w.id,
+      fromCompId: w.from.owner.id,
+      fromPinIdx: w.from.owner.outputs.indexOf(w.from),
+      toCompId: w.to.owner.id,
+      toPinIdx: w.to.owner.inputs.indexOf(w.to),
+    })),
+  };
+}
+
+export function deserializeCircuit(data) {
+  if (!data || !data.components) throw new Error('Invalid circuit data');
+  const idMap = new Map();
+  const newComps = data.components.map(spec => {
+    const comp = createComponent(spec.type);
+    comp.id = spec.id; // preserva IDs originais
+    if (spec.label) comp.label = spec.label;
+    comp.x = spec.x || 0;
+    comp.y = spec.y || 0;
+    comp.rotation = spec.rotation || 0;
+    if (spec.state !== undefined && comp instanceof InputSwitch) comp.state = !!spec.state;
+    if (spec.text !== undefined && comp instanceof Label) comp.text = spec.text;
+    if (spec.width !== undefined && comp instanceof Label) comp.width = spec.width;
+    if (spec.height !== undefined && comp instanceof Label) comp.height = spec.height;
+    if (spec.periodMs && comp instanceof Clock) comp.periodMs = spec.periodMs;
+    idMap.set(spec.id, comp);
+    return comp;
+  });
+  const newWires = (data.wires || []).map(w => {
+    const fromComp = idMap.get(w.fromCompId);
+    const toComp = idMap.get(w.toCompId);
+    if (!fromComp || !toComp) return null;
+    const src = fromComp.outputs[w.fromPinIdx];
+    const dst = toComp.inputs[w.toPinIdx];
+    if (!src || !dst) return null;
+    const wire = new Wire(w.id || uid(), src, dst);
+    return wire;
+  }).filter(Boolean);
+  return { components: newComps, wires: newWires };
+}
+
+// Reset estado interno (mantém topologia)
+export function resetSimulationState(components) {
+  for (const c of components) {
+    if (c instanceof InputSwitch) c.state = false;
+    if (c instanceof PushButton) c.state = false;
+    // Flip-flops: zera estado interno
+    if (c.q !== undefined) c.q = false;
+    if (c._lastClk !== undefined) c._lastClk = false;
+    if (c._flops) c._flops = [false, false, false, false];
   }
 }
