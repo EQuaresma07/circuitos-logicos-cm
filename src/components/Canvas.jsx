@@ -131,32 +131,26 @@ function CompNode({
   onPress, onRelease, onLabelEdit,
 }) {
   const { w, h } = getCompSize(comp);
-  const raw = getCompSizeRaw(comp);
   const rot = comp.rotation || 0;
 
-  // O body sempre é desenhado em coordenadas "não rotacionadas" relativas a (0,0)
-  // depois aplicamos transform de rotação em torno do CENTRO, seguido de translação para posição final.
-  //
-  // Transform CORRETO para SVG (aplicado da direita para esquerda):
-  //   translate(-raw.w/2, -raw.h/2)       — move o center para a origem
-  //   rotate(rot)                         — rotaciona em torno da origem
-  //   translate(comp.x + w/2, comp.y + h/2) — move o center para a posição final
-  const bodyTransform = rot === 0
-    ? `translate(${comp.x}, ${comp.y})`
-    : `translate(${comp.x + w / 2}, ${comp.y + h / 2}) rotate(${rot}) translate(${-raw.w / 2}, ${-raw.h / 2})`;
+  // SIMPLES: se há rotação, encapsula em um <g> com rotate()
+  // SVG cuida de posicionar tudo automaticamente
+  const rotationGroup = rot !== 0 
+    ? { transform: `translate(${comp.x + w / 2}, ${comp.y + h / 2}) rotate(${rot}) translate(${-w / 2}, ${-h / 2})` }
+    : undefined;
 
   return (
     <g
       onMouseDown={(e) => { e.stopPropagation(); onMouseDown(e, comp.id); }}
       style={{ cursor: comp instanceof LabelComp ? 'move' : 'grab' }}
       data-comp="true"
+      {...(rotationGroup && { transform: rotationGroup.transform })}
     >
-      {/* Body rotacionado: desenhado como se comp estivesse em (0,0) e sem rotação */}
-      <g transform={bodyTransform}>
+      <g transform={rot === 0 ? `translate(${comp.x}, ${comp.y})` : undefined}>
         <RotatedBody comp={comp} onToggle={onToggle} onPress={onPress} onRelease={onRelease} onLabelEdit={onLabelEdit} selected={selected} />
       </g>
 
-      {/* Pinos: posições GLOBAIS já calculadas com rotação */}
+      {/* Pinos */}
       {!(comp instanceof LabelComp) && (
         <>
           {comp.inputs.map((pin) => <PinDot key={pin.id} pin={pin} comp={comp} side="in" onPinClick={onPinClick} />)}
@@ -164,7 +158,7 @@ function CompNode({
         </>
       )}
 
-      {/* Outline de seleção (em torno do bbox rotacionado) */}
+      {/* Outline */}
       {selected && (
         <rect
           x={comp.x - 6} y={comp.y - 6}
