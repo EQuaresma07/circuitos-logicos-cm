@@ -134,19 +134,13 @@ function CompNode({
   const raw = getCompSizeRaw(comp);
   const rot = comp.rotation || 0;
 
-  // Estratégia correcta para SVG:
-  // 1. O body é desenhado com localComp em (0,0), dimensões raw.w × raw.h
-  // 2. Queremos que o resultado final fique posicionado em comp.x, comp.y
-  //    com o bounding box rotacionado tendo tamanho w × h
+  // O body sempre é desenhado em coordenadas "não rotacionadas" relativas a (0,0)
+  // depois aplicamos transform de rotação em torno do CENTRO, seguido de translação para posição final.
   //
-  // Transform:
-  //   a) translate(comp.x, comp.y)          — move para posição desejada
-  //   b) translate(w/2, h/2)                — vai ao centro do bbox rotacionado
-  //   c) rotate(rot)                         — rotaciona em torno do centro
-  //   d) translate(-raw.w/2, -raw.h/2)      — volta ao canto do body original
-  //
-  // SVG aplica transforms da direita para esquerda, então escrevemos:
-  // translate(comp.x + w/2, comp.y + h/2) rotate(rot) translate(-raw.w/2, -raw.h/2)
+  // Transform CORRETO para SVG (aplicado da direita para esquerda):
+  //   translate(-raw.w/2, -raw.h/2)       — move o center para a origem
+  //   rotate(rot)                         — rotaciona em torno da origem
+  //   translate(comp.x + w/2, comp.y + h/2) — move o center para a posição final
   const bodyTransform = rot === 0
     ? `translate(${comp.x}, ${comp.y})`
     : `translate(${comp.x + w / 2}, ${comp.y + h / 2}) rotate(${rot}) translate(${-raw.w / 2}, ${-raw.h / 2})`;
@@ -157,11 +151,12 @@ function CompNode({
       style={{ cursor: comp instanceof LabelComp ? 'move' : 'grab' }}
       data-comp="true"
     >
+      {/* Body rotacionado: desenhado como se comp estivesse em (0,0) e sem rotação */}
       <g transform={bodyTransform}>
         <RotatedBody comp={comp} onToggle={onToggle} onPress={onPress} onRelease={onRelease} onLabelEdit={onLabelEdit} selected={selected} />
       </g>
 
-      {/* Pinos em coordenadas globais já rotacionadas */}
+      {/* Pinos: posições GLOBAIS já calculadas com rotação */}
       {!(comp instanceof LabelComp) && (
         <>
           {comp.inputs.map((pin) => <PinDot key={pin.id} pin={pin} comp={comp} side="in" onPinClick={onPinClick} />)}
@@ -169,7 +164,7 @@ function CompNode({
         </>
       )}
 
-      {/* Outline de seleção */}
+      {/* Outline de seleção (em torno do bbox rotacionado) */}
       {selected && (
         <rect
           x={comp.x - 6} y={comp.y - 6}
