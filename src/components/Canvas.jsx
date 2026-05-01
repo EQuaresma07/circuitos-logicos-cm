@@ -134,28 +134,22 @@ function CompNode({
   const raw = getCompSizeRaw(comp);
   const rot = comp.rotation || 0;
 
-  // O body sempre é desenhado em coordenadas "não rotacionadas" relativas a (0,0)
-  // depois aplicamos transform de rotação + translação para a posição global.
-  // Cálculo: rotação em torno do centro do componente (raw.w/2, raw.h/2),
-  // depois translade para que o bbox rotacionado fique em (comp.x, comp.y).
-  const cx = raw.w / 2;
-  const cy = raw.h / 2;
-  // Após rotação, o offset do bbox muda. Calculamos onde fica o (0,0) original
-  // em coords rotacionadas e ajustamos com translação.
-  let tx, ty;
-  if (rot === 90) { tx = h; ty = 0; }      // após rotação, w_novo = h_velho
-  else if (rot === 180) { tx = w; ty = h; }
-  else if (rot === 270) { tx = 0; ty = w; }
-  else { tx = 0; ty = 0; }
-
-  // Bodies usam coordenadas baseadas em comp.x e comp.y já. Para rotacionar,
-  // preciso de um sistema separado: o body é desenhado como se comp.x=0,comp.y=0
-  // e raw.w x raw.h, e aplicamos transform.
-  // Solução: vou usar um <g transform> que primeiro translada ao canto rotacionado
-  // e depois rotaciona.
-
-  // transform = "translate(comp.x + tx, comp.y + ty) rotate(rot)"
-  const bodyTransform = `translate(${comp.x + tx}, ${comp.y + ty}) rotate(${rot})`;
+  // Estratégia correcta para SVG:
+  // 1. O body é desenhado com localComp em (0,0), dimensões raw.w × raw.h
+  // 2. Queremos que o resultado final fique posicionado em comp.x, comp.y
+  //    com o bounding box rotacionado tendo tamanho w × h
+  //
+  // Transform:
+  //   a) translate(comp.x, comp.y)          — move para posição desejada
+  //   b) translate(w/2, h/2)                — vai ao centro do bbox rotacionado
+  //   c) rotate(rot)                         — rotaciona em torno do centro
+  //   d) translate(-raw.w/2, -raw.h/2)      — volta ao canto do body original
+  //
+  // SVG aplica transforms da direita para esquerda, então escrevemos:
+  // translate(comp.x + w/2, comp.y + h/2) rotate(rot) translate(-raw.w/2, -raw.h/2)
+  const bodyTransform = rot === 0
+    ? `translate(${comp.x}, ${comp.y})`
+    : `translate(${comp.x + w / 2}, ${comp.y + h / 2}) rotate(${rot}) translate(${-raw.w / 2}, ${-raw.h / 2})`;
 
   return (
     <g
@@ -163,12 +157,11 @@ function CompNode({
       style={{ cursor: comp instanceof LabelComp ? 'move' : 'grab' }}
       data-comp="true"
     >
-      {/* Body rotacionado: desenhado como se comp estivesse em (0,0) e sem rotação */}
       <g transform={bodyTransform}>
         <RotatedBody comp={comp} onToggle={onToggle} onPress={onPress} onRelease={onRelease} onLabelEdit={onLabelEdit} selected={selected} />
       </g>
 
-      {/* Pinos: posições GLOBAIS já calculadas com rotação */}
+      {/* Pinos em coordenadas globais já rotacionadas */}
       {!(comp instanceof LabelComp) && (
         <>
           {comp.inputs.map((pin) => <PinDot key={pin.id} pin={pin} comp={comp} side="in" onPinClick={onPinClick} />)}
@@ -176,7 +169,7 @@ function CompNode({
         </>
       )}
 
-      {/* Outline de seleção (em torno do bbox rotacionado) */}
+      {/* Outline de seleção */}
       {selected && (
         <rect
           x={comp.x - 6} y={comp.y - 6}
