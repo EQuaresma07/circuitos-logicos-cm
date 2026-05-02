@@ -5,6 +5,7 @@ import Canvas, { getCompSize } from './components/Canvas.jsx';
 import StatusBar from './components/StatusBar.jsx';
 import AboutModal from './components/AboutModal.jsx';
 import LogicAnalyzer from './components/LogicAnalyzer.jsx';
+import ClockConfigPanel from './components/ClockConfigPanel.jsx';
 import {
   InputSwitch, OutputProbe, Clock, Gate, Wire,
   PushButton, HighConstant, LowConstant, PullUp, PullDown,
@@ -75,6 +76,7 @@ export default function App() {
   // ── UI ──
   const [darkMode, setDarkMode] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [clockConfigId, setClockConfigId] = useState(null); // id do clock sendo configurado
   const [currentTool, setCurrentTool] = useState('select'); // 'select' | 'pan'
   const [objectPickerVisible, setObjectPickerVisible] = useState(true);
   const [snapGrid, setSnapGrid] = useState(false);
@@ -87,7 +89,19 @@ export default function App() {
   // ── Simulação ──
   const [simulationPaused, setSimulationPaused] = useState(false);
   const [stepRequested, setStepRequested] = useState(false);
-  const [simulationFreq, setSimulationFreq] = useState(60); // Hz, padrão 60
+  const [simulationFreq, setSimulationFreq] = useState(1); // Hz, padrão 1Hz
+
+  // Quando freq muda, atualiza periodMs de todos os clocks no canvas
+  const handleChangeFreq = useCallback((hz) => {
+    setSimulationFreq(hz);
+    const periodMs = 1000 / Math.max(0.5, hz);
+    setComponents(prev => {
+      prev.forEach(c => {
+        if (c instanceof Clock) c.periodMs = periodMs;
+      });
+      return [...prev];
+    });
+  }, []);
 
   // ── Histórico (undo/redo) ──
   const historyRef = useRef({ past: [], future: [] });
@@ -116,28 +130,22 @@ export default function App() {
     else document.body.classList.remove('dark');
   }, [darkMode]);
 
-  // ── Loop de animação ──
+  // ── Loop de animação ── (roda sempre a 60fps, sem throttle)
   useEffect(() => {
     let running = true;
     const start = performance.now();
-    const intervalMs = 1000 / Math.max(0.5, simulationFreq);
     function loop(now) {
       if (!running) return;
       const elapsed = now - start;
       if (!simulationPaused) {
-        // Throttle por simulationFreq
-        if (elapsed - lastSimUpdate.current >= intervalMs) {
-          clockRef.current = elapsed;
-          lastClockTime.current = elapsed;
-          lastSimUpdate.current = elapsed;
-        }
+        clockRef.current = elapsed;
+        lastClockTime.current = elapsed;
       } else if (stepRequested) {
-        // Avança apenas um pequeno delta
-        clockRef.current = lastClockTime.current + intervalMs;
+        // Um passo = um período mínimo de 1ms
+        clockRef.current = lastClockTime.current + 1;
         lastClockTime.current = clockRef.current;
         setStepRequested(false);
       }
-      // Recording (sempre, mesmo pausado faz sentido na timeline)
       if (traceRef.current.tracedPinIds.length > 0) {
         traceRef.current.recordSample(components, clockRef.current);
       }
@@ -146,7 +154,7 @@ export default function App() {
     }
     requestAnimationFrame(loop);
     return () => { running = false; };
-  }, [simulationPaused, stepRequested, simulationFreq, components]);
+  }, [simulationPaused, stepRequested, components]);
 
   // ── Propagação a cada render ──
   useEffect(() => {
@@ -343,6 +351,18 @@ export default function App() {
   }, []);
 
   const handleLabelEdit = useCallback((compId) => setEditingLabelId(compId), []);
+
+  const handleClockConfig = useCallback((compId) => {
+    setClockConfigId(prev => prev === compId ? null : compId);
+  }, []);
+
+  const handleClockCommit = useCallback((compId, newPeriodMs) => {
+    setComponents(prev => {
+      const c = prev.find(c => c.id === compId);
+      if (c instanceof Clock) c.periodMs = Math.max(50, newPeriodMs);
+      return [...prev];
+    });
+  }, []);
 
   const handleLabelCommit = useCallback((compId, newText) => {
     pushHistory();
@@ -693,7 +713,7 @@ export default function App() {
         onToggleAnalyzer={toggleAnalyzer}
         analyzerVisible={analyzerVisible}
         simulationFreq={simulationFreq}
-        onChangeFreq={setSimulationFreq}
+        onChangeFreq={handleChangeFreq}
         // Help
         onShowAbout={() => setShowAbout(true)}
         // Theme
@@ -729,6 +749,7 @@ export default function App() {
           onLabelCancel={handleLabelCancel}
           onDrop={handleDrop}
           svgRef={svgRef}
+          onClockConfig={handleClockConfig}
         />
       </div>
       <StatusBar
@@ -751,6 +772,20 @@ export default function App() {
       />
 
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+
+      {/* Painel de configuração do Clock */}
+      {clockConfigId && (() => {
+        const clockComp = components.find(c => c.id === clockConfigId);
+        if (!clockComp) return null;
+        return (
+          <ClockConfigPanel
+            comp={clockComp}
+            svgRef={svgRef}
+            onCommit={(ms) => handleClockCommit(clockConfigId, ms)}
+            onClose={() => setClockConfigId(null)}
+          />
+        );
+      })()}
 
       <LogicAnalyzer
         visible={analyzerVisible}

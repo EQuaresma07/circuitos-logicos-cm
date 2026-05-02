@@ -105,7 +105,7 @@ export function getPinPos(comp, pin) {
 
 function CompNode({
   comp, selected, onMouseDown, onPinClick, onToggle,
-  onPress, onRelease, onLabelEdit,
+  onPress, onRelease, onLabelEdit, onClockConfig,
 }) {
   const { w, h } = getCompSize(comp);
 
@@ -122,7 +122,7 @@ function CompNode({
         : comp instanceof LowConstant ? <ConstantBody comp={comp} value="0" />
         : comp instanceof PullUp ? <PullBody comp={comp} kind="up" />
         : comp instanceof PullDown ? <PullBody comp={comp} kind="down" />
-        : comp instanceof Clock ? <ClockBody comp={comp} />
+        : comp instanceof Clock ? <ClockBody comp={comp} onClockConfig={onClockConfig} />
         : comp instanceof OutputProbe ? <OutputBody comp={comp} />
         : comp instanceof FourBitDigit ? <DigitBody comp={comp} />
         : comp instanceof TriStateBuffer ? <TriStateBody comp={comp} />
@@ -350,12 +350,26 @@ function PullBody({ comp, kind }) {
   );
 }
 
-function ClockBody({ comp }) {
+function ClockBody({ comp, onClockConfig }) {
   const { w, h } = getCompSize(comp);
+  const periodMs = comp.periodMs || 1000;
+  const freqHz = 1000 / periodMs;
+  const freqLabel = freqHz < 1
+    ? `${freqHz.toFixed(2)} Hz`
+    : freqHz < 10
+      ? `${freqHz.toFixed(1)} Hz`
+      : `${Math.round(freqHz)} Hz`;
+
   return (
     <>
+      {/* Fundo clicável */}
       <rect x={comp.x} y={comp.y} width={w} height={h} rx={4}
-        fill="var(--comp-fill)" stroke="var(--comp-stroke)" strokeWidth="1.5" />
+        fill="var(--comp-fill)" stroke={comp.state ? 'var(--accent)' : 'var(--comp-stroke)'}
+        strokeWidth={comp.state ? '2' : '1.5'}
+        style={{ cursor: 'pointer', transition: 'stroke .1s' }}
+        onClick={(e) => { e.stopPropagation(); onClockConfig?.(comp.id); }} />
+
+      {/* Forma de onda */}
       <polyline
         points={
           `${comp.x + 12},${comp.y + h - 14} ` +
@@ -369,11 +383,18 @@ function ClockBody({ comp }) {
         }
         fill="none" stroke={comp.state ? 'var(--accent)' : 'var(--comp-stroke)'}
         strokeWidth="2" style={{ pointerEvents: 'none' }} />
+
+      {/* Ícone de settings (canto superior direito) */}
+      <text x={comp.x + w - 6} y={comp.y + 11}
+        textAnchor="end" fill="var(--canvas-text-mute)" fontSize="10"
+        style={{ pointerEvents: 'none' }}>⚙</text>
+
+      {/* Frequência atual */}
       <text x={comp.x + w / 2} y={comp.y + h + 12}
         textAnchor="middle" fill="var(--canvas-text-dim)" fontSize="10"
         fontFamily="'JetBrains Mono', monospace"
         style={{ pointerEvents: 'none' }}>
-        CLK
+        CLK {freqLabel}
       </text>
     </>
   );
@@ -1168,7 +1189,7 @@ export default function Canvas({
   onCompMouseDown, onPinClick, onToggle,
   onPress, onRelease,
   onLabelEdit, onLabelCommit, onLabelCancel,
-  onDrop, svgRef,
+  onDrop, svgRef, onClockConfig,
 }) {
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
@@ -1271,6 +1292,7 @@ export default function Canvas({
             onPress={onPress}
             onRelease={onRelease}
             onLabelEdit={onLabelEdit}
+            onClockConfig={onClockConfig}
           />
         ))}
 
