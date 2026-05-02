@@ -1489,3 +1489,141 @@ body.dark .palette-item-icon svg {
   line-height: 1.5;
   max-width: 300px;
 }
+
+/* ════════════════════════════════════════════════════════════
+   Gate Config Panel (popup de engrenagem das portas lógicas)
+   ════════════════════════════════════════════════════════════ */
+
+.gate-config-panel {
+  position: fixed;
+  z-index: 500;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+  width: 200px;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  animation: gate-panel-in 0.12s ease;
+}
+
+@keyframes gate-panel-in {
+  from { opacity: 0; transform: scale(0.92) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.gate-config-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 12px 8px;
+  background: #0f172a;
+  border-bottom: 1px solid #334155;
+}
+
+.gate-config-icon {
+  color: #4a90d9;
+  display: inline-flex;
+}
+
+.gate-config-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4a90d9;
+}
+
+.gate-config-close {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  transition: color 0.1s;
+}
+
+.gate-config-close:hover { color: #e2e8f0; }
+
+.gate-config-body {
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.gate-config-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  align-self: flex-start;
+}
+
+/* Stepper − numero + */
+.gate-config-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.gate-stepper-btn {
+  background: #0f172a;
+  border: none;
+  color: #e2e8f0;
+  font-size: 20px;
+  font-weight: 300;
+  width: 44px;
+  height: 40px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.gate-stepper-btn:hover:not(:disabled) {
+  background: #1e293b;
+  color: #4a90d9;
+}
+
+.gate-stepper-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.gate-stepper-value {
+  flex: 1;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: #e2e8f0;
+  font-family: var(--font-mono);
+  background: #1e293b;
+  height: 40px;
+  line-height: 40px;
+  border-left: 1px solid #334155;
+  border-right: 1px solid #334155;
+  user-select: none;
+}
+
+.gate-config-hint {
+  font-size: 10.5px;
+  color: #475569;
+  margin: 0;
+}

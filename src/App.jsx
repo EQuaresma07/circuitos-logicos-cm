@@ -5,6 +5,7 @@ import Canvas, { getCompSize } from './components/Canvas.jsx';
 import StatusBar from './components/StatusBar.jsx';
 import AboutModal from './components/AboutModal.jsx';
 import TruthTableModal from './components/TruthTableModal.jsx';
+import GateConfigPanel from './components/GateConfigPanel.jsx';
 import LogicAnalyzer from './components/LogicAnalyzer.jsx';
 import ClockConfigPanel from './components/ClockConfigPanel.jsx';
 import ContextMenu from './components/ContextMenu.jsx';
@@ -83,6 +84,7 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showTruthTable, setShowTruthTable] = useState(false);
+  const [gateConfigId, setGateConfigId] = useState(null);
   const [clockConfigId, setClockConfigId] = useState(null); // id do clock sendo configurado
   const [currentTool, setCurrentTool] = useState('select'); // 'select' | 'pan'
   const [objectPickerVisible, setObjectPickerVisible] = useState(true);
@@ -363,6 +365,32 @@ export default function App() {
 
   const handleClockConfig = useCallback((compId) => {
     setClockConfigId(prev => prev === compId ? null : compId);
+  }, []);
+
+  const handleGearClick = useCallback((compId) => {
+    setGateConfigId(prev => prev === compId ? null : compId);
+  }, []);
+
+  const handleGateInputCount = useCallback((compId, count) => {
+    setComponents(prev => {
+      const c = prev.find(c => c.id === compId);
+      if (c) {
+        // Desconectar fios que saem de pinos que serão removidos
+        const oldCount = c.inputCount;
+        c.setInputCount(count);
+        if (count < oldCount) {
+          // Remover fios conectados a pinos que não existem mais
+          setWires(ws => ws.filter(w => {
+            const ownerIn = w.to?.owner;
+            if (ownerIn?.id === compId) {
+              return c.inputs.some(p => p.id === w.to.id);
+            }
+            return true;
+          }));
+        }
+      }
+      return [...prev];
+    });
   }, []);
 
   const handleClockCommit = useCallback((compId, newPeriodMs) => {
@@ -829,6 +857,7 @@ export default function App() {
           onWireClick={handleWireClick}
           onWireContextMenu={handleWireContextMenu}
           onContextMenu={handleContextMenu}
+          onGearClick={handleGearClick}
         />
       </div>
       <StatusBar
@@ -870,6 +899,20 @@ export default function App() {
             svgRef={svgRef}
             onCommit={(ms) => handleClockCommit(clockConfigId, ms)}
             onClose={() => setClockConfigId(null)}
+          />
+        );
+      })()}
+
+      {/* Painel de configuração de entradas das portas lógicas */}
+      {gateConfigId && (() => {
+        const gateComp = components.find(c => c.id === gateConfigId);
+        if (!gateComp) return null;
+        return (
+          <GateConfigPanel
+            comp={gateComp}
+            svgRef={svgRef}
+            onCommit={(count) => handleGateInputCount(gateConfigId, count)}
+            onClose={() => setGateConfigId(null)}
           />
         );
       })()}

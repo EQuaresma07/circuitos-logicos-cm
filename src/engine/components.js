@@ -174,7 +174,7 @@ export const GATE_DEFS = {
 };
 
 // Tipos que suportam expansão de pinos (2..8)
-const EXPANDABLE_GATES = new Set(['AND', 'OR', 'NAND', 'NOR']);
+export const EXPANDABLE_GATES = new Set(['AND', 'OR', 'NAND', 'NOR']);
 
 export class Gate extends Component {
   constructor(id, gateType, inputCount) {

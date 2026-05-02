@@ -8,7 +8,7 @@ import {
   SchmittTrigger, Comparator4, BCDDecoder, SevenSegmentDisplay,
   LedMatrix8x8, ROM16x8,
   Label as LabelComp,
-  asBool,
+  asBool, EXPANDABLE_GATES,
 } from '../engine/components.js';
 import {
   ANDSymbol, ORSymbol, NOTSymbol, NANDSymbol, NORSymbol,
@@ -105,7 +105,7 @@ export function getPinPos(comp, pin) {
 
 function CompNode({
   comp, selected, onMouseDown, onPinClick, onToggle,
-  onPress, onRelease, onLabelEdit, onClockConfig, onContextMenu,
+  onPress, onRelease, onLabelEdit, onClockConfig, onContextMenu, onGearClick,
 }) {
   const { w, h } = getCompSize(comp);
 
@@ -142,7 +142,7 @@ function CompNode({
         : comp instanceof LedMatrix8x8 ? <LedMatrixBody comp={comp} />
         : comp instanceof ROM16x8 ? <ROMBody comp={comp} />
         : comp instanceof LabelComp ? <LabelBody comp={comp} onEdit={onLabelEdit} selected={selected} />
-        : comp instanceof Gate ? <GateBody comp={comp} />
+        : comp instanceof Gate ? <GateBody comp={comp} onGearClick={onGearClick} />
         : null
       }
 
@@ -214,10 +214,12 @@ function PinDot({ pin, comp, side, onPinClick }) {
 //  Bodies (um por tipo de componente)
 // ════════════════════════════════════════════════════════════
 
-function GateBody({ comp }) {
+function GateBody({ comp, onGearClick }) {
   const Sym = GATE_SYMBOL_MAP[comp.type];
   const { w, h } = getCompSize(comp);
   const cx = comp.x + w / 2;
+  const isExpandable = EXPANDABLE_GATES.has(comp.type);
+
   return (
     <>
       <g transform={`translate(${comp.x + 8}, ${comp.y + 6})`}>
@@ -227,8 +229,37 @@ function GateBody({ comp }) {
         fill="var(--canvas-text-dim)" fontSize="10" fontWeight="600"
         fontFamily="'JetBrains Mono', monospace"
         style={{ pointerEvents: 'none' }}>
-        {comp.type}
+        {comp.type}{isExpandable && comp.inputCount > 2 ? `(${comp.inputCount})` : ''}
       </text>
+
+      {/* Engrenagem de configuração — só para portas expansíveis */}
+      {isExpandable && (
+        <g
+          transform={`translate(${comp.x + w - 4}, ${comp.y - 4})`}
+          style={{ cursor: 'pointer' }}
+          onClick={(e) => { e.stopPropagation(); onGearClick?.(comp.id); }}
+          onMouseDown={(e) => e.stopPropagation()}
+          title="Configurar entradas"
+        >
+          {/* Fundo circular clicável */}
+          <circle r={9} fill="#1e2228" stroke="#4a5568" strokeWidth="1" opacity="0.92" />
+          {/* Ícone de engrenagem */}
+          <g transform="scale(0.55)" fill="#94a3b8">
+            <circle cx="0" cy="0" r="4.5" fill="#94a3b8"/>
+            {[0,45,90,135,180,225,270,315].map((deg) => (
+              <rect
+                key={deg}
+                x="-2" y="-9.5"
+                width="4" height="4"
+                rx="0.8"
+                transform={`rotate(${deg})`}
+                fill="#94a3b8"
+              />
+            ))}
+            <circle cx="0" cy="0" r="3" fill="#1e2228"/>
+          </g>
+        </g>
+      )}
     </>
   );
 }
@@ -1214,7 +1245,7 @@ export default function Canvas({
   onLabelEdit, onLabelCommit, onLabelCancel,
   onDrop, svgRef, onClockConfig,
   onWireClick, onWireContextMenu,
-  onContextMenu,
+  onContextMenu, onGearClick,
 }) {
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
@@ -1329,6 +1360,7 @@ export default function Canvas({
             onLabelEdit={onLabelEdit}
             onClockConfig={onClockConfig}
             onContextMenu={onContextMenu}
+            onGearClick={onGearClick}
           />
         ))}
 
