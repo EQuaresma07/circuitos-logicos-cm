@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar.jsx';
 import Canvas, { getCompSize } from './components/Canvas.jsx';
 import StatusBar from './components/StatusBar.jsx';
 import AboutModal from './components/AboutModal.jsx';
+import TruthTableModal from './components/TruthTableModal.jsx';
 import LogicAnalyzer from './components/LogicAnalyzer.jsx';
 import ClockConfigPanel from './components/ClockConfigPanel.jsx';
 import ContextMenu from './components/ContextMenu.jsx';
@@ -81,6 +82,7 @@ export default function App() {
   // ── UI ──
   const [darkMode, setDarkMode] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [showTruthTable, setShowTruthTable] = useState(false);
   const [clockConfigId, setClockConfigId] = useState(null); // id do clock sendo configurado
   const [currentTool, setCurrentTool] = useState('select'); // 'select' | 'pan'
   const [objectPickerVisible, setObjectPickerVisible] = useState(true);
@@ -788,6 +790,7 @@ export default function App() {
         onChangeFreq={handleChangeFreq}
         // Help
         onShowAbout={() => setShowAbout(true)}
+        onShowTruthTable={() => setShowTruthTable(true)}
         // Theme
         onToggleDarkMode={() => setDarkMode(d => !d)}
         darkMode={darkMode}
@@ -849,6 +852,13 @@ export default function App() {
       />
 
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+      {showTruthTable && (
+        <TruthTableModal
+          components={components}
+          wires={wires}
+          onClose={() => setShowTruthTable(false)}
+        />
+      )}
 
       {/* Painel de configuração do Clock */}
       {clockConfigId && (() => {

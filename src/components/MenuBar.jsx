@@ -102,6 +102,7 @@ export default function MenuBar({
   onToggleAnalyzer, analyzerVisible,
   simulationFreq, onChangeFreq,
   onShowAbout,
+  onShowTruthTable,
   // Theme
   onToggleDarkMode, darkMode,
   // Selection state
@@ -149,7 +150,7 @@ export default function MenuBar({
             <MenuItem label="Excluir" onClick={wrap(onDelete)} disabled={!hasSelection} shortcut="Del" />
             <MenuItem divider />
             <MenuItem label="Criar Circuito Integrado..." comingSoon />
-            <MenuItem label="Tabela Verdade..." comingSoon />
+            <MenuItem label="Tabela Verdade..." onClick={wrap(onShowTruthTable)} />
             <MenuItem divider />
             <MenuItem label="Selecionar Tudo" onClick={wrap(onSelectAll)} shortcut="Ctrl+A" />
             <MenuItem label="Limpar Seleção" onClick={wrap(onSelectNone)} shortcut="Ctrl+D" />
@@ -271,7 +272,7 @@ export default function MenuBar({
 
         {/* Grupo 6: Truth Table */}
         <div className="toolbar-group">
-          <button className="toolbar-icon-btn coming-soon" title="Tabela Verdade (em breve)" disabled aria-label="Tabela Verdade">{Icon.truthTable}</button>
+          <button className="toolbar-icon-btn" onClick={onShowTruthTable} title="Tabela Verdade" aria-label="Tabela Verdade">{Icon.truthTable}</button>
         </div>
 
         <div className="toolbar-spacer" />
