@@ -716,6 +716,60 @@ body.dark .palette-item-icon svg {
 }
 
 /* ════════════════════════════════════════════════════════════
+   Context Menu
+   ════════════════════════════════════════════════════════════ */
+
+.ctx-menu {
+  position: fixed;
+  min-width: 190px;
+  background: var(--bg-chrome-hi);
+  border: 1px solid var(--border-chrome);
+  border-radius: 7px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+  padding: 4px;
+  z-index: 1800;
+  user-select: none;
+}
+
+.ctx-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 7px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-chrome);
+  font-size: 12.5px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  text-align: left;
+  gap: 8px;
+  transition: background .08s, color .08s;
+}
+
+.ctx-item:hover:not(.disabled) {
+  background: var(--accent-bg);
+  color: var(--accent-hi);
+}
+
+.ctx-item.disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.ctx-item.danger:hover:not(.disabled) {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+}
+
+.ctx-divider {
+  height: 1px;
+  background: var(--border-chrome-soft);
+  margin: 3px 0;
+}
+
+/* ════════════════════════════════════════════════════════════
    Clock Config Panel
    ════════════════════════════════════════════════════════════ */
 

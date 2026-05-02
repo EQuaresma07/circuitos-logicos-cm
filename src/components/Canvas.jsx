@@ -105,13 +105,14 @@ export function getPinPos(comp, pin) {
 
 function CompNode({
   comp, selected, onMouseDown, onPinClick, onToggle,
-  onPress, onRelease, onLabelEdit, onClockConfig,
+  onPress, onRelease, onLabelEdit, onClockConfig, onContextMenu,
 }) {
   const { w, h } = getCompSize(comp);
 
   return (
     <g
       onMouseDown={(e) => { e.stopPropagation(); onMouseDown(e, comp.id); }}
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu?.('comp', comp.id, e); }}
       style={{ cursor: comp instanceof LabelComp ? 'move' : 'grab' }}
       data-comp="true"
     >
@@ -1087,21 +1088,43 @@ function LabelBody({ comp, onEdit, selected }) {
 //  Wire (com cor diferente para HIGH-Z)
 // ════════════════════════════════════════════════════════════
 
-function WirePath({ wire }) {
+function WirePath({ wire, selected, onWireClick, onWireContextMenu }) {
+  const [hovered, setHovered] = useState(false);
   const fromPos = getPinPos(wire.from.owner, wire.from);
   const toPos = getPinPos(wire.to.owner, wire.to);
   const dx = Math.max(20, (toPos.x - fromPos.x) * 0.5);
   const path = `M${fromPos.x},${fromPos.y} C${fromPos.x + dx},${fromPos.y} ${toPos.x - dx},${toPos.y} ${toPos.x},${toPos.y}`;
   const v = wire.from.value;
   let color;
-  if (v === null || v === undefined) color = '#a78bfa'; // HIGH-Z
+  if (selected) color = '#f59e0b'; // âmbar quando selecionado
+  else if (hovered) color = '#38bdf8';
+  else if (v === null || v === undefined) color = '#a78bfa'; // HIGH-Z
   else if (v) color = 'var(--accent)';
   else color = 'var(--wire-off)';
+
   return (
-    <path d={path} fill="none" stroke={color} strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeDasharray={v === null ? '5,3' : ''}
-      style={{ transition: 'stroke .15s' }} />
+    <g>
+      {/* Hitbox invisível mais larga para facilitar clique */}
+      <path d={path} fill="none" stroke="transparent" strokeWidth="12"
+        style={{ cursor: 'pointer' }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onClick={(e) => { e.stopPropagation(); onWireClick?.(wire.id, e); }}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onWireContextMenu?.(wire.id, e); }}
+      />
+      {/* Fio visual */}
+      <path d={path} fill="none" stroke={color} strokeWidth={selected || hovered ? 3 : 2.5}
+        strokeLinecap="round"
+        strokeDasharray={v === null ? '5,3' : ''}
+        style={{ transition: 'stroke .1s, stroke-width .1s', pointerEvents: 'none' }}
+      />
+      {/* Ponto de seleção no meio */}
+      {selected && (() => {
+        const mx = (fromPos.x + toPos.x) / 2;
+        const my = (fromPos.y + toPos.y) / 2;
+        return <circle cx={mx} cy={my} r={5} fill="#f59e0b" stroke="#fff" strokeWidth="1.5" style={{ pointerEvents: 'none' }} />;
+      })()}
+    </g>
   );
 }
 
@@ -1182,7 +1205,7 @@ function LabelEditor({ comp, svgRef, onCommit, onCancel }) {
 // ════════════════════════════════════════════════════════════
 
 export default function Canvas({
-  components, wires, selectedIds, wiringFrom, mousePos, marquee,
+  components, wires, selectedIds, selectedWireIds, wiringFrom, mousePos, marquee,
   editingLabelId,
   viewBox, showGrid, currentTool,
   onMouseMove, onMouseUp, onMouseDown,
@@ -1190,6 +1213,8 @@ export default function Canvas({
   onPress, onRelease,
   onLabelEdit, onLabelCommit, onLabelCancel,
   onDrop, svgRef, onClockConfig,
+  onWireClick, onWireContextMenu,
+  onContextMenu,
 }) {
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
@@ -1270,15 +1295,25 @@ export default function Canvas({
         <rect data-bg="true"
           x={vb.x - 5000} y={vb.y - 5000}
           width={vb.w + 10000} height={vb.h + 10000}
-          fill="var(--canvas-bg)" />
+          fill="var(--canvas-bg)"
+          onContextMenu={(e) => { e.preventDefault(); onContextMenu?.('canvas', null, e); }}
+        />
         {showGrid && (
           <rect data-bg="true"
             x={vb.x - 5000} y={vb.y - 5000}
             width={vb.w + 10000} height={vb.h + 10000}
-            fill="url(#grid-pattern)" />
+            fill="url(#grid-pattern)"
+            onContextMenu={(e) => { e.preventDefault(); onContextMenu?.('canvas', null, e); }}
+          />
         )}
 
-        {wires.map(w => <WirePath key={w.id} wire={w} />)}
+        {wires.map(w => (
+          <WirePath key={w.id} wire={w}
+            selected={selectedWireIds?.has(w.id)}
+            onWireClick={onWireClick}
+            onWireContextMenu={onWireContextMenu}
+          />
+        ))}
         {wiringPreview}
 
         {components.map(c => (
@@ -1293,6 +1328,7 @@ export default function Canvas({
             onRelease={onRelease}
             onLabelEdit={onLabelEdit}
             onClockConfig={onClockConfig}
+            onContextMenu={onContextMenu}
           />
         ))}
 

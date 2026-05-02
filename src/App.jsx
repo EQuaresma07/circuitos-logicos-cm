@@ -6,6 +6,7 @@ import StatusBar from './components/StatusBar.jsx';
 import AboutModal from './components/AboutModal.jsx';
 import LogicAnalyzer from './components/LogicAnalyzer.jsx';
 import ClockConfigPanel from './components/ClockConfigPanel.jsx';
+import ContextMenu from './components/ContextMenu.jsx';
 import {
   InputSwitch, OutputProbe, Clock, Gate, Wire,
   PushButton, HighConstant, LowConstant, PullUp, PullDown,
@@ -64,6 +65,10 @@ export default function App() {
   const [components, setComponents] = useState([]);
   const [wires, setWires] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [selectedWireIds, setSelectedWireIds] = useState(new Set());
+
+  // ── Context Menu ──
+  const [contextMenu, setContextMenu] = useState(null); // { x, y, type, targetId }
 
   // ── Interação ──
   const [dragging, setDragging] = useState(null);
@@ -268,8 +273,10 @@ export default function App() {
     const pos = svgPoint(e);
     setMarquee({ x0: pos.x, y0: pos.y, x1: pos.x, y1: pos.y });
     setSelectedIds(new Set());
+    setSelectedWireIds(new Set());
     setWiringFrom(null);
     setEditingLabelId(null);
+    setContextMenu(null);
   }, [svgPoint, currentTool, viewBox]);
 
   const handleCompMouseDown = useCallback((e, compId) => {
@@ -388,18 +395,68 @@ export default function App() {
 
   // ── Edit actions ──
   const deleteSelected = useCallback(() => {
-    if (selectedIds.size === 0) return;
+    const hasComps = selectedIds.size > 0;
+    const hasWires = selectedWireIds.size > 0;
+    if (!hasComps && !hasWires) return;
     pushHistory();
-    setWires(prev => prev.filter(w => !selectedIds.has(w.from.owner.id) && !selectedIds.has(w.to.owner.id)));
-    setComponents(prev => prev.filter(c => !selectedIds.has(c.id)));
-    setSelectedIds(new Set());
-  }, [selectedIds, pushHistory]);
+    if (hasWires) {
+      setWires(prev => prev.filter(w => !selectedWireIds.has(w.id)));
+      setSelectedWireIds(new Set());
+    }
+    if (hasComps) {
+      setWires(prev => prev.filter(w => !selectedIds.has(w.from.owner.id) && !selectedIds.has(w.to.owner.id)));
+      setComponents(prev => prev.filter(c => !selectedIds.has(c.id)));
+      setSelectedIds(new Set());
+    }
+  }, [selectedIds, selectedWireIds, pushHistory]);
 
   const selectAll = useCallback(() => {
     setSelectedIds(new Set(components.map(c => c.id)));
+    setSelectedWireIds(new Set());
   }, [components]);
 
-  const selectNone = useCallback(() => setSelectedIds(new Set()), []);
+  const selectNone = useCallback(() => {
+    setSelectedIds(new Set());
+    setSelectedWireIds(new Set());
+  }, []);
+
+  // ── Wire click / delete ──
+  const handleWireClick = useCallback((wireId, e) => {
+    if (e.shiftKey) {
+      setSelectedWireIds(prev => {
+        const next = new Set(prev);
+        if (next.has(wireId)) next.delete(wireId); else next.add(wireId);
+        return next;
+      });
+    } else {
+      setSelectedWireIds(new Set([wireId]));
+      setSelectedIds(new Set()); // deseleciona componentes
+    }
+  }, []);
+
+  const deleteWire = useCallback((wireId) => {
+    pushHistory();
+    setWires(prev => prev.filter(w => w.id !== wireId));
+    setSelectedWireIds(prev => { const next = new Set(prev); next.delete(wireId); return next; });
+  }, [pushHistory]);
+
+  // ── Context Menu ──
+  const handleContextMenu = useCallback((type, targetId, e) => {
+    // Se clicar num comp sem estar selecionado, seleciona
+    if (type === 'comp' && targetId && !selectedIds.has(targetId)) {
+      setSelectedIds(new Set([targetId]));
+      setSelectedWireIds(new Set());
+    }
+    setContextMenu({ x: e.clientX, y: e.clientY, type, targetId });
+  }, [selectedIds]);
+
+  const handleWireContextMenu = useCallback((wireId, e) => {
+    setSelectedWireIds(new Set([wireId]));
+    setSelectedIds(new Set());
+    setContextMenu({ x: e.clientX, y: e.clientY, type: 'wire', targetId: wireId });
+  }, []);
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
   // ── Copy / Cut / Paste ──
   const copySelected = useCallback(() => {
@@ -575,7 +632,7 @@ export default function App() {
 
       if (e.key === 'Escape') {
         setWiringFrom(null); setSelectedIds(new Set()); setMarquee(null); setEditingLabelId(null);
-        setPendingTraceSlot(null);
+        setSelectedWireIds(new Set()); setContextMenu(null); setPendingTraceSlot(null);
         return;
       }
 
@@ -588,7 +645,22 @@ export default function App() {
       }
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedIds.size > 0) { e.preventDefault(); deleteSelected(); }
+        if (selectedIds.size > 0 || selectedWireIds.size > 0) { e.preventDefault(); deleteSelected(); }
+        return;
+      }
+
+      // Teclas de seta — mover componentes selecionados
+      if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) {
+        if (selectedIds.size === 0) return;
+        e.preventDefault();
+        const step = e.shiftKey ? GRID : 1;
+        const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+        const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+        setComponents(prev => prev.map(c => {
+          if (selectedIds.has(c.id)) { c.x += dx; c.y += dy; }
+          return c;
+        }));
+        setTick(t => t + 1);
         return;
       }
 
@@ -625,7 +697,7 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [
-    selectedIds, deleteSelected, selectAll, selectNone, copySelected, cutSelected, pasteClipboard,
+    selectedIds, selectedWireIds, deleteSelected, selectAll, selectNone, copySelected, cutSelected, pasteClipboard,
     undo, redo, newCircuit, openFile, save, saveAs,
     zoomIn, zoomOut, panToCenter, togglePauseSimulation, advanceStep, simulationPaused,
   ]);
@@ -729,6 +801,7 @@ export default function App() {
           components={components}
           wires={wires}
           selectedIds={selectedIds}
+          selectedWireIds={selectedWireIds}
           wiringFrom={wiringFrom}
           mousePos={mousePos}
           marquee={marquee}
@@ -750,6 +823,9 @@ export default function App() {
           onDrop={handleDrop}
           svgRef={svgRef}
           onClockConfig={handleClockConfig}
+          onWireClick={handleWireClick}
+          onWireContextMenu={handleWireContextMenu}
+          onContextMenu={handleContextMenu}
         />
       </div>
       <StatusBar
@@ -757,6 +833,7 @@ export default function App() {
         wireCount={wires.length}
         wiringFrom={wiringFrom}
         selectionCount={selectedIds.size}
+        selectedWireCount={selectedWireIds.size}
         currentTool={currentTool}
         simulationPaused={simulationPaused}
         filename={currentFilename}
@@ -802,6 +879,30 @@ export default function App() {
         <div className="trace-pick-hint">
           Click on a pin to trace it (slot {pendingTraceSlot + 1}) · ESC to cancel
         </div>
+      )}
+
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          type={contextMenu.type}
+          targetId={contextMenu.targetId}
+          hasSelection={selectedIds.size > 0 || selectedWireIds.size > 0}
+          selectionCount={selectedIds.size}
+          onClose={closeContextMenu}
+          actions={{
+            cut: cutSelected,
+            copy: copySelected,
+            paste: pasteClipboard,
+            delete: deleteSelected,
+            deleteWire: contextMenu.targetId ? () => deleteWire(contextMenu.targetId) : null,
+            selectAll,
+            selectNone,
+            zoomIn,
+            zoomOut,
+            panCenter: panToCenter,
+          }}
+        />
       )}
     </div>
   );
