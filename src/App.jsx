@@ -3,6 +3,7 @@ import MenuBar from './components/MenuBar.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Canvas, { getCompSize } from './components/Canvas.jsx';
 import StatusBar from './components/StatusBar.jsx';
+import SimulationBar from './components/SimulationBar.jsx';
 import AboutModal from './components/AboutModal.jsx';
 import TruthTableModal from './components/TruthTableModal.jsx';
 import GateConfigPanel from './components/GateConfigPanel.jsx';
@@ -627,6 +628,56 @@ export default function App() {
     setViewBox(v => ({ x: v.x - v.w * 0.125, y: v.y - v.h * 0.125, w: v.w * 1.25, h: v.h * 1.25 }));
   }, []);
 
+  // Zoom com scroll do mouse, centrado na posição do cursor
+  const handleWheelZoom = useCallback((deltaY, svgX, svgY) => {
+    // deltaY positivo => zoom out, deltaY negativo => zoom in
+    const factor = deltaY > 0 ? 1.15 : (1 / 1.15);
+    setViewBox(v => {
+      const newW = Math.max(200, Math.min(20000, v.w * factor));
+      const newH = Math.max(120, Math.min(15000, v.h * factor));
+      // Mantém o ponto sob o cursor (svgX, svgY) ancorado: a posição relativa
+      // do cursor dentro do viewBox deve permanecer a mesma após o zoom.
+      const fx = (svgX - v.x) / v.w;
+      const fy = (svgY - v.y) / v.h;
+      return {
+        x: svgX - fx * newW,
+        y: svgY - fy * newH,
+        w: newW,
+        h: newH,
+      };
+    });
+  }, []);
+
+  // Setter direto de zoom (para o slider da barra inferior)
+  // sliderValue ∈ [0, 100], onde 50 = zoom padrão
+  const setZoomFromSlider = useCallback((sliderValue) => {
+    // Mapear [0, 100] para escala do viewBox: 0 = zoomed out (4x), 100 = zoomed in (0.25x)
+    // 50 corresponde a "natural" (1x = 1200x700)
+    const baseW = 1200;
+    const baseH = 700;
+    // Curva exponencial: t=0 → 4.0, t=0.5 → 1.0, t=1 → 0.25
+    const t = sliderValue / 100;
+    const scale = Math.pow(4, 1 - 2 * t); // 4^(1) = 4, 4^(0) = 1, 4^(-1) = 0.25
+    setViewBox(v => {
+      // Mantém o centro
+      const cx = v.x + v.w / 2;
+      const cy = v.y + v.h / 2;
+      const newW = baseW * scale;
+      const newH = baseH * scale;
+      return { x: cx - newW / 2, y: cy - newH / 2, w: newW, h: newH };
+    });
+  }, []);
+
+  // Calcula o valor atual do slider de zoom a partir do viewBox
+  const zoomSliderValue = (() => {
+    const baseW = 1200;
+    const scale = viewBox.w / baseW;
+    // scale = 4^(1 - 2t) → log4(scale) = 1 - 2t → t = (1 - log4(scale)) / 2
+    const log4 = Math.log(scale) / Math.log(4);
+    const t = (1 - log4) / 2;
+    return Math.max(0, Math.min(100, t * 100));
+  })();
+
   const panToCenter = useCallback(() => {
     if (components.length === 0) {
       setViewBox({ x: 0, y: 0, w: 1200, h: 700 });
@@ -858,8 +909,19 @@ export default function App() {
           onWireContextMenu={handleWireContextMenu}
           onContextMenu={handleContextMenu}
           onGearClick={handleGearClick}
+          onWheelZoom={handleWheelZoom}
         />
       </div>
+      <SimulationBar
+        simulationPaused={simulationPaused}
+        onTogglePause={togglePauseSimulation}
+        onStep={advanceStep}
+        onReset={resetSimulation}
+        zoomSliderValue={zoomSliderValue}
+        onZoomSlider={setZoomFromSlider}
+        onZoomIn={zoomIn}
+        onZoomOut={zoomOut}
+      />
       <StatusBar
         componentCount={components.length}
         wireCount={wires.length}

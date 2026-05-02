@@ -21,6 +21,13 @@ export const COMP_H = 56;
 export const PIN_R = 5;
 
 // Retorna { w, h } do componente
+// Para Gates expansíveis: cada input precisa de ~14px de altura para ficar legível.
+// O símbolo ocupa altura fixa (44px) centrado verticalmente; os pinos extras
+// "esticam" o componente na vertical, com stubs horizontais visíveis.
+export const GATE_PIN_SPACING = 14;
+export const GATE_BASE_H = 56;
+export const GATE_SYMBOL_H = 44;
+
 export function getCompSize(comp) {
   if (comp instanceof FourBitDigit) return { w: 88, h: 88 };
   if (comp instanceof Register4) return { w: 120, h: 144 };
@@ -40,6 +47,12 @@ export function getCompSize(comp) {
   if (comp instanceof LedMatrix8x8) return { w: 200, h: 200 };
   if (comp instanceof ROM16x8) return { w: 130, h: 168 };
   if (comp instanceof LabelComp) return { w: comp.width, h: comp.height };
+  // Gate expansível: altura proporcional ao inputCount
+  if (comp instanceof Gate && EXPANDABLE_GATES.has(comp.type) && comp.inputCount > 2) {
+    const minH = GATE_BASE_H;
+    const computed = comp.inputCount * GATE_PIN_SPACING + 16;
+    return { w: COMP_W, h: Math.max(minH, computed) };
+  }
   return { w: COMP_W, h: COMP_H };
 }
 
@@ -183,6 +196,14 @@ function PinDot({ pin, comp, side, onPinClick }) {
   else if (pos.y < comp.y + 4) { dy = 8; }                   // pino em cima
   else { dy = -8; }                                          // pino embaixo
 
+  // Para Gates expandidas (3+ entradas), o stub das entradas já é desenhado pela
+  // barra vertical do GateBody — então não desenhamos um stub duplicado aqui.
+  const isGateExpandedInput =
+    comp instanceof Gate &&
+    EXPANDABLE_GATES.has(comp.type) &&
+    comp.inputCount > 2 &&
+    side === 'in';
+
   let fill;
   if (pin.value === null || pin.value === undefined) fill = '#a78bfa';
   else if (pin.value) fill = 'var(--accent)';
@@ -190,7 +211,9 @@ function PinDot({ pin, comp, side, onPinClick }) {
 
   return (
     <g>
-      <line x1={pos.x} y1={pos.y} x2={pos.x + dx} y2={pos.y + dy} stroke="var(--comp-stroke)" strokeWidth="1.5" />
+      {!isGateExpandedInput && (
+        <line x1={pos.x} y1={pos.y} x2={pos.x + dx} y2={pos.y + dy} stroke="var(--comp-stroke)" strokeWidth="1.5" />
+      )}
       <circle
         cx={pos.x} cy={pos.y} r={PIN_R + 3}
         fill="transparent"
@@ -219,12 +242,71 @@ function GateBody({ comp, onGearClick }) {
   const { w, h } = getCompSize(comp);
   const cx = comp.x + w / 2;
   const isExpandable = EXPANDABLE_GATES.has(comp.type);
+  const isExpanded = isExpandable && comp.inputCount > 2;
+
+  // Para Gates expandidas: símbolo fica centralizado verticalmente (h fixo de 44),
+  // e os pinos ficam distribuídos ao longo de toda a altura da "barra de entrada".
+  const symbolH = 44;
+  const symbolW = 80;
+  const symbolX = comp.x + 8;
+  const symbolY = comp.y + (h - symbolH) / 2;
 
   return (
     <>
-      <g transform={`translate(${comp.x + 8}, ${comp.y + 6})`}>
-        {Sym && <Sym width={80} height={44} />}
-      </g>
+      {isExpanded ? (
+        <>
+          {/* Barra vertical à esquerda que une todos os pinos (estilo Logic.ly) */}
+          {(() => {
+            const n = comp.inputCount;
+            const step = h / (n + 1);
+            const firstY = comp.y + step;
+            const lastY  = comp.y + step * n;
+            const barX   = symbolX + 6; // posição do "encosto" dos stubs no símbolo
+            return (
+              <>
+                {/* Stubs horizontais saindo de cada pino até a barra */}
+                {Array.from({ length: n }).map((_, i) => {
+                  const py = comp.y + step * (i + 1);
+                  return (
+                    <line
+                      key={`stub-${i}`}
+                      x1={comp.x} y1={py}
+                      x2={barX}   y2={py}
+                      stroke="var(--comp-stroke)"
+                      strokeWidth="1.5"
+                    />
+                  );
+                })}
+                {/* Barra vertical conectando todos os stubs */}
+                <line
+                  x1={barX} y1={firstY}
+                  x2={barX} y2={lastY}
+                  stroke="var(--comp-stroke)"
+                  strokeWidth="1.5"
+                />
+                {/* Stub horizontal central conectando a barra ao símbolo */}
+                <line
+                  x1={barX}            y1={comp.y + h / 2}
+                  x2={symbolX + 12}    y2={comp.y + h / 2}
+                  stroke="var(--comp-stroke)"
+                  strokeWidth="1.5"
+                />
+              </>
+            );
+          })()}
+
+          {/* Símbolo da porta centralizado verticalmente */}
+          <g transform={`translate(${symbolX}, ${symbolY})`}>
+            {Sym && <Sym width={symbolW} height={symbolH} />}
+          </g>
+        </>
+      ) : (
+        // Renderização original (2 inputs ou portas não-expansíveis)
+        <g transform={`translate(${comp.x + 8}, ${comp.y + 6})`}>
+          {Sym && <Sym width={80} height={44} />}
+        </g>
+      )}
+
       <text x={cx} y={comp.y + h + 12} textAnchor="middle"
         fill="var(--canvas-text-dim)" fontSize="10" fontWeight="600"
         fontFamily="'JetBrains Mono', monospace"
@@ -1245,12 +1327,31 @@ export default function Canvas({
   onLabelEdit, onLabelCommit, onLabelCancel,
   onDrop, svgRef, onClockConfig,
   onWireClick, onWireContextMenu,
-  onContextMenu, onGearClick,
+  onContextMenu, onGearClick, onWheelZoom,
 }) {
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
   }, []);
+
+  // Listener nativo de wheel (não-passive) para permitir preventDefault() e zoom centrado
+  useEffect(() => {
+    const svg = svgRef?.current;
+    if (!svg || !onWheelZoom) return;
+    const handler = (e) => {
+      e.preventDefault();
+      // Converter posição do cursor em coords do SVG
+      const pt = svg.createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return;
+      const p = pt.matrixTransform(ctm.inverse());
+      onWheelZoom(e.deltaY, p.x, p.y);
+    };
+    svg.addEventListener('wheel', handler, { passive: false });
+    return () => svg.removeEventListener('wheel', handler);
+  }, [svgRef, onWheelZoom]);
 
   const handleDrop = useCallback((e) => {
     e.preventDefault();

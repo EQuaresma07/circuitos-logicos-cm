@@ -1627,3 +1627,126 @@ body.dark .palette-item-icon svg {
   color: #475569;
   margin: 0;
 }
+
+/* ════════════════════════════════════════════════════════════
+   SimulationBar (barra inferior de controle de simulação + zoom)
+   ════════════════════════════════════════════════════════════ */
+
+.sim-bar {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 12px;
+  background: #1f2226;
+  border-top: 1px solid #1a1c1f;
+  gap: 8px;
+  user-select: none;
+}
+
+.sim-bar-spacer { flex: 1; }
+
+/* ── Esquerda: controles ── */
+.sim-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sim-circle-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #0e1014;
+  border: 1px solid #3a3d42;
+  color: #e2e8f0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.12s ease;
+}
+
+.sim-circle-btn:hover:not(:disabled) {
+  background: #2a2d32;
+  border-color: #4a90d9;
+  color: #4a90d9;
+}
+
+.sim-circle-btn:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.sim-circle-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ── Direita: zoom ── */
+.sim-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.sim-zoom-icon-btn {
+  background: transparent;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  transition: background 0.1s;
+}
+
+.sim-zoom-icon-btn:hover {
+  background: rgba(214, 48, 49, 0.15);
+}
+
+/* Slider de zoom — estilo Logic.ly: trilha cinza, thumb azul */
+.sim-zoom-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 180px;
+  height: 4px;
+  background: linear-gradient(to right, #3a3d42, #5a5d62);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.sim-zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #4a90d9;
+  border: 1.5px solid #2a5d8f;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  transition: transform 0.1s;
+}
+
+.sim-zoom-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.sim-zoom-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #4a90d9;
+  border: 1.5px solid #2a5d8f;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+
+.sim-zoom-slider::-moz-range-track {
+  height: 4px;
+  background: #3a3d42;
+  border-radius: 2px;
+}
