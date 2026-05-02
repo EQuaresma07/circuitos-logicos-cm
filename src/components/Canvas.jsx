@@ -5,6 +5,8 @@ import {
   FourBitDigit, TriStateBuffer,
   SRFlipFlop, DFlipFlop, JKFlipFlop, TFlipFlop,
   Mux2, Demux2, FullAdder, Register4,
+  SchmittTrigger, Comparator4, BCDDecoder, SevenSegmentDisplay,
+  LedMatrix8x8, ROM16x8,
   Label as LabelComp,
   asBool,
 } from '../engine/components.js';
@@ -18,8 +20,8 @@ export const COMP_W = 96;
 export const COMP_H = 56;
 export const PIN_R = 5;
 
-// Retorna { w, h } sem rotação
-function getCompSizeRaw(comp) {
+// Retorna { w, h } do componente
+export function getCompSize(comp) {
   if (comp instanceof FourBitDigit) return { w: 88, h: 88 };
   if (comp instanceof Register4) return { w: 120, h: 144 };
   if (comp instanceof FullAdder) return { w: 110, h: 88 };
@@ -30,27 +32,15 @@ function getCompSizeRaw(comp) {
   if (comp instanceof TriStateBuffer) return { w: 96, h: 64 };
   if (comp instanceof PullUp || comp instanceof PullDown) return { w: 56, h: 76 };
   if (comp instanceof HighConstant || comp instanceof LowConstant) return { w: 72, h: 44 };
+  // V9
+  if (comp instanceof SchmittTrigger) return { w: 72, h: 48 };
+  if (comp instanceof Comparator4) return { w: 120, h: 168 };
+  if (comp instanceof BCDDecoder) return { w: 110, h: 168 };
+  if (comp instanceof SevenSegmentDisplay) return { w: 90, h: 130 };
+  if (comp instanceof LedMatrix8x8) return { w: 200, h: 200 };
+  if (comp instanceof ROM16x8) return { w: 130, h: 168 };
   if (comp instanceof LabelComp) return { w: comp.width, h: comp.height };
   return { w: COMP_W, h: COMP_H };
-}
-
-// Retorna { w, h } considerando rotação (90/270 trocam w/h)
-export function getCompSize(comp) {
-  const raw = getCompSizeRaw(comp);
-  const r = comp.rotation || 0;
-  if (r === 90 || r === 270) return { w: raw.h, h: raw.w };
-  return raw;
-}
-
-// Aplica rotação a um ponto local (relativo a 0,0 do componente não rotacionado)
-// Retorna ponto local relativo ao bounding box rotacionado
-function rotateLocal(px, py, w, h, rotation) {
-  switch (rotation) {
-    case 90:  return { x: h - py, y: px };       // sentido horário 90°
-    case 180: return { x: w - px, y: h - py };
-    case 270: return { x: py,     y: w - px };
-    default:  return { x: px,     y: py };
-  }
 }
 
 const GATE_SYMBOL_MAP = {
@@ -59,67 +49,54 @@ const GATE_SYMBOL_MAP = {
   BUFFER: BufferSymbol,
 };
 
-// Retorna posição local do pino (relativa ao componente, sem rotação)
-function getPinPosLocal(comp, pin) {
-  const { w, h } = getCompSizeRaw(comp);
+// ── Posição de pinos ──
+export function getPinPos(comp, pin) {
+  const { w, h } = getCompSize(comp);
 
+  // Tri-state: data à esquerda, enable em cima, output à direita
   if (comp instanceof TriStateBuffer) {
-    if (pin === comp.inputs[0]) return { x: 0, y: h / 2 };
-    if (pin === comp.inputs[1]) return { x: w / 2, y: 0 };
-    return { x: w, y: h / 2 };
+    if (pin === comp.inputs[0]) return { x: comp.x, y: comp.y + h / 2 };
+    if (pin === comp.inputs[1]) return { x: comp.x + w / 2, y: comp.y };
+    return { x: comp.x + w, y: comp.y + h / 2 };
   }
 
+  // MUX 2:1 — A em cima-esquerda, B embaixo-esquerda, S embaixo-meio, Q direita-meio
   if (comp instanceof Mux2) {
-    if (pin === comp.inputs[0]) return { x: 0, y: h * 0.30 };
-    if (pin === comp.inputs[1]) return { x: 0, y: h * 0.62 };
-    if (pin === comp.inputs[2]) return { x: w / 2, y: h };
-    return { x: w, y: h / 2 };
+    if (pin === comp.inputs[0]) return { x: comp.x, y: comp.y + h * 0.30 };
+    if (pin === comp.inputs[1]) return { x: comp.x, y: comp.y + h * 0.62 };
+    if (pin === comp.inputs[2]) return { x: comp.x + w / 2, y: comp.y + h };
+    return { x: comp.x + w, y: comp.y + h / 2 };
   }
 
+  // DEMUX 1:2
   if (comp instanceof Demux2) {
-    if (pin === comp.inputs[0]) return { x: 0, y: h / 2 };
-    if (pin === comp.inputs[1]) return { x: w / 2, y: h };
-    if (pin === comp.outputs[0]) return { x: w, y: h * 0.30 };
-    return { x: w, y: h * 0.62 };
+    if (pin === comp.inputs[0]) return { x: comp.x, y: comp.y + h / 2 };
+    if (pin === comp.inputs[1]) return { x: comp.x + w / 2, y: comp.y + h };
+    if (pin === comp.outputs[0]) return { x: comp.x + w, y: comp.y + h * 0.30 };
+    return { x: comp.x + w, y: comp.y + h * 0.62 };
   }
 
+  // LED Matrix: X0..X2 esquerda-topo, Y0..Y2 esquerda-meio, D/CLK/CLR esquerda-fundo
+  if (comp instanceof LedMatrix8x8) {
+    const idx = comp.inputs.indexOf(pin);
+    if (idx < 0) return { x: comp.x, y: comp.y };
+    // 9 inputs total: 3 X + 3 Y + D + CLK + CLR
+    const step = h / 10;
+    return { x: comp.x, y: comp.y + step * (idx + 1) };
+  }
+
+  // Default: inputs à esquerda, outputs à direita, espaçados verticalmente
   const idx = comp.inputs.indexOf(pin);
   if (idx >= 0) {
     const step = h / (comp.inputs.length + 1);
-    return { x: 0, y: step * (idx + 1) };
+    return { x: comp.x, y: comp.y + step * (idx + 1) };
   }
   const oidx = comp.outputs.indexOf(pin);
   if (oidx >= 0) {
     const step = h / (comp.outputs.length + 1);
-    return { x: w, y: step * (oidx + 1) };
+    return { x: comp.x + w, y: comp.y + step * (oidx + 1) };
   }
-  return { x: 0, y: 0 };
-}
-
-// ── Posição global de pinos (com rotação aplicada) ──
-export function getPinPos(comp, pin) {
-  const local = getPinPosLocal(comp, pin);
-  const raw = getCompSizeRaw(comp);
-  const rot = comp.rotation || 0;
-  const rotated = rotateLocal(local.x, local.y, raw.w, raw.h, rot);
-  return { x: comp.x + rotated.x, y: comp.y + rotated.y };
-}
-
-// Determina a "direção" do pino após rotação
-function getPinSide(comp, pin) {
-  const local = getPinPosLocal(comp, pin);
-  const raw = getCompSizeRaw(comp);
-  let side;
-  if (Math.abs(local.x) < 1) side = 'left';
-  else if (Math.abs(local.x - raw.w) < 1) side = 'right';
-  else if (Math.abs(local.y) < 1) side = 'top';
-  else side = 'bottom';
-  const rot = comp.rotation || 0;
-  if (rot === 0) return side;
-  const cw = { left: 'top', top: 'right', right: 'bottom', bottom: 'left' };
-  let result = side;
-  for (let i = 0; i < rot / 90; i++) result = cw[result];
-  return result;
+  return { x: comp.x, y: comp.y };
 }
 
 // ════════════════════════════════════════════════════════════
@@ -131,24 +108,42 @@ function CompNode({
   onPress, onRelease, onLabelEdit,
 }) {
   const { w, h } = getCompSize(comp);
-  const rot = comp.rotation || 0;
-
-  // SIMPLES: se há rotação, encapsula em um <g> com rotate()
-  // SVG cuida de posicionar tudo automaticamente
-  const rotationGroup = rot !== 0 
-    ? { transform: `translate(${comp.x + w / 2}, ${comp.y + h / 2}) rotate(${rot}) translate(${-w / 2}, ${-h / 2})` }
-    : undefined;
 
   return (
     <g
       onMouseDown={(e) => { e.stopPropagation(); onMouseDown(e, comp.id); }}
       style={{ cursor: comp instanceof LabelComp ? 'move' : 'grab' }}
       data-comp="true"
-      {...(rotationGroup && { transform: rotationGroup.transform })}
     >
-      <g transform={rot === 0 ? `translate(${comp.x}, ${comp.y})` : undefined}>
-        <RotatedBody comp={comp} onToggle={onToggle} onPress={onPress} onRelease={onRelease} onLabelEdit={onLabelEdit} selected={selected} />
-      </g>
+      {/* Body por tipo */}
+      {comp instanceof InputSwitch ? <InputBody comp={comp} onToggle={onToggle} />
+        : comp instanceof PushButton ? <PushButtonBody comp={comp} onPress={onPress} onRelease={onRelease} />
+        : comp instanceof HighConstant ? <ConstantBody comp={comp} value="1" />
+        : comp instanceof LowConstant ? <ConstantBody comp={comp} value="0" />
+        : comp instanceof PullUp ? <PullBody comp={comp} kind="up" />
+        : comp instanceof PullDown ? <PullBody comp={comp} kind="down" />
+        : comp instanceof Clock ? <ClockBody comp={comp} />
+        : comp instanceof OutputProbe ? <OutputBody comp={comp} />
+        : comp instanceof FourBitDigit ? <DigitBody comp={comp} />
+        : comp instanceof TriStateBuffer ? <TriStateBody comp={comp} />
+        : comp instanceof SRFlipFlop ? <FFBody comp={comp} title="SR" leftLabels={['S','R']} />
+        : comp instanceof DFlipFlop ? <FFBody comp={comp} title="D" leftLabels={['D']} />
+        : comp instanceof JKFlipFlop ? <FFBody comp={comp} title="JK" leftLabels={['J','K']} />
+        : comp instanceof TFlipFlop ? <FFBody comp={comp} title="T" leftLabels={['T']} />
+        : comp instanceof Mux2 ? <MuxBody comp={comp} />
+        : comp instanceof Demux2 ? <DemuxBody comp={comp} />
+        : comp instanceof FullAdder ? <AdderBody comp={comp} />
+        : comp instanceof Register4 ? <RegisterBody comp={comp} />
+        : comp instanceof SchmittTrigger ? <SchmittBody comp={comp} />
+        : comp instanceof Comparator4 ? <ComparatorBody comp={comp} />
+        : comp instanceof BCDDecoder ? <BCDBody comp={comp} />
+        : comp instanceof SevenSegmentDisplay ? <SevenSegBody comp={comp} />
+        : comp instanceof LedMatrix8x8 ? <LedMatrixBody comp={comp} />
+        : comp instanceof ROM16x8 ? <ROMBody comp={comp} />
+        : comp instanceof LabelComp ? <LabelBody comp={comp} onEdit={onLabelEdit} selected={selected} />
+        : comp instanceof Gate ? <GateBody comp={comp} />
+        : null
+      }
 
       {/* Pinos */}
       {!(comp instanceof LabelComp) && (
@@ -158,7 +153,7 @@ function CompNode({
         </>
       )}
 
-      {/* Outline */}
+      {/* Outline de seleção */}
       {selected && (
         <rect
           x={comp.x - 6} y={comp.y - 6}
@@ -175,55 +170,17 @@ function CompNode({
   );
 }
 
-// Wrapper que renderiza o body certo. Os bodies usam coordenadas relativas
-// onde o componente está em (0,0) e tem dimensões raw (não rotacionadas).
-function RotatedBody({ comp, onToggle, onPress, onRelease, onLabelEdit, selected }) {
-  // Cria uma versão "fake" do componente com x=0, y=0 para os bodies usarem
-  // Cuidado: NÃO mutar comp original. Usamos um proxy somente para leitura.
-  const localComp = Object.create(comp);
-  localComp.x = 0;
-  localComp.y = 0;
-
-  return (
-    <>
-      {comp instanceof InputSwitch ? <InputBody comp={localComp} onToggle={() => onToggle(comp.id)} />
-        : comp instanceof PushButton ? <PushButtonBody comp={localComp} onPress={() => onPress(comp.id)} onRelease={() => onRelease(comp.id)} />
-        : comp instanceof HighConstant ? <ConstantBody comp={localComp} value="1" />
-        : comp instanceof LowConstant ? <ConstantBody comp={localComp} value="0" />
-        : comp instanceof PullUp ? <PullBody comp={localComp} kind="up" />
-        : comp instanceof PullDown ? <PullBody comp={localComp} kind="down" />
-        : comp instanceof Clock ? <ClockBody comp={localComp} />
-        : comp instanceof OutputProbe ? <OutputBody comp={localComp} />
-        : comp instanceof FourBitDigit ? <DigitBody comp={localComp} />
-        : comp instanceof TriStateBuffer ? <TriStateBody comp={localComp} />
-        : comp instanceof SRFlipFlop ? <FFBody comp={localComp} title="SR" leftLabels={['S','R']} />
-        : comp instanceof DFlipFlop ? <FFBody comp={localComp} title="D" leftLabels={['D']} />
-        : comp instanceof JKFlipFlop ? <FFBody comp={localComp} title="JK" leftLabels={['J','K']} />
-        : comp instanceof TFlipFlop ? <FFBody comp={localComp} title="T" leftLabels={['T']} />
-        : comp instanceof Mux2 ? <MuxBody comp={localComp} />
-        : comp instanceof Demux2 ? <DemuxBody comp={localComp} />
-        : comp instanceof FullAdder ? <AdderBody comp={localComp} />
-        : comp instanceof Register4 ? <RegisterBody comp={localComp} />
-        : comp instanceof LabelComp ? <LabelBody comp={localComp} onEdit={() => onLabelEdit(comp.id)} selected={selected} />
-        : comp instanceof Gate ? <GateBody comp={localComp} />
-        : null
-      }
-    </>
-  );
-}
-
 // ── Pino genérico ──
 function PinDot({ pin, comp, side, onPinClick }) {
   const pos = getPinPos(comp, pin);
-  // Determina direção do stub de acordo com o lado lógico (após rotação)
-  const pinSide = getPinSide(comp, pin);
+  const { w } = getCompSize(comp);
+
+  // Determinar direção do stub baseado em onde o pino está
   let dx = 0, dy = 0;
-  switch (pinSide) {
-    case 'left':   dx = 8;  break;
-    case 'right':  dx = -8; break;
-    case 'top':    dy = 8;  break;
-    case 'bottom': dy = -8; break;
-  }
+  if (Math.abs(pos.x - comp.x) < 2) { dx = 8; }              // pino à esquerda
+  else if (Math.abs(pos.x - (comp.x + w)) < 2) { dx = -8; }  // pino à direita
+  else if (pos.y < comp.y + 4) { dy = 8; }                   // pino em cima
+  else { dy = -8; }                                          // pino embaixo
 
   let fill;
   if (pin.value === null || pin.value === undefined) fill = '#a78bfa';
@@ -772,6 +729,305 @@ function RegisterBody({ comp }) {
           />
         );
       })()}
+    </>
+  );
+}
+
+// ── V9 Bodies ──
+
+function SchmittBody({ comp }) {
+  const { w, h } = getCompSize(comp);
+  return (
+    <>
+      <rect x={comp.x} y={comp.y} width={w} height={h} rx={4}
+        fill="var(--comp-fill)" stroke="var(--comp-stroke)" strokeWidth="1.5" />
+      {/* Triângulo + bola (NOT) */}
+      <path d={`M ${comp.x + 14} ${comp.y + 8} L ${comp.x + w - 18} ${comp.y + h / 2} L ${comp.x + 14} ${comp.y + h - 8} Z`}
+        fill="var(--comp-fill)" stroke="var(--comp-stroke)" strokeWidth="1.5" strokeLinejoin="round" />
+      <circle cx={comp.x + w - 12} cy={comp.y + h / 2} r="3" fill="var(--comp-fill)" stroke="var(--comp-stroke)" strokeWidth="1.4" />
+      {/* Símbolo de histerese */}
+      <path d={`M ${comp.x + 22} ${comp.y + h / 2 + 4} L ${comp.x + 26} ${comp.y + h / 2 + 4} L ${comp.x + 26} ${comp.y + h / 2 - 4} L ${comp.x + 32} ${comp.y + h / 2 - 4} L ${comp.x + 32} ${comp.y + h / 2}`}
+        fill="none" stroke="var(--comp-stroke)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+      <text x={comp.x + w / 2} y={comp.y + h + 12} textAnchor="middle"
+        fill="var(--canvas-text-dim)" fontSize="9" fontWeight="600"
+        fontFamily="'JetBrains Mono', monospace" style={{ pointerEvents: 'none' }}>
+        SCHMITT
+      </text>
+    </>
+  );
+}
+
+function ComparatorBody({ comp }) {
+  const { w, h } = getCompSize(comp);
+  return (
+    <>
+      <rect x={comp.x} y={comp.y} width={w} height={h} rx={4}
+        fill="var(--comp-fill)" stroke="var(--comp-stroke)" strokeWidth="1.8" />
+      <rect x={comp.x} y={comp.y} width={w} height={22} rx={4}
+        fill="var(--accent-bg)" style={{ pointerEvents: 'none' }} />
+      <text x={comp.x + w / 2} y={comp.y + 15} textAnchor="middle"
+        fill="var(--canvas-text)" fontSize="11" fontWeight="700"
+        fontFamily="'JetBrains Mono', monospace" style={{ pointerEvents: 'none' }}>
+        CMP 4-bit
+      </text>
+      {/* Labels dos pinos de entrada */}
+      {comp.inputs.map((pin) => {
+        const pos = getPinPos(comp, pin);
+        return (
+          <text key={pin.id} x={pos.x + 10} y={pos.y + 3}
+            fill="var(--canvas-text-dim)" fontSize="8" fontWeight="600"
+            fontFamily="'JetBrains Mono', monospace"
+            style={{ pointerEvents: 'none' }}>
+            {pin.name}
+          </text>
+        );
+      })}
+      {/* Labels dos outputs */}
+      {comp.outputs.map((pin) => {
+        const pos = getPinPos(comp, pin);
+        return (
+          <text key={pin.id} x={pos.x - 10} y={pos.y + 3}
+            textAnchor="end" fill="var(--canvas-text-dim)" fontSize="8" fontWeight="600"
+            fontFamily="'JetBrains Mono', monospace"
+            style={{ pointerEvents: 'none' }}>
+            {pin.name}
+          </text>
+        );
+      })}
+      {/* Indicadores visuais com base em output */}
+      <text x={comp.x + w / 2} y={comp.y + h * 0.45} textAnchor="middle"
+        fill={asBool(comp.outputs[0].value) ? '#10b981' : 'var(--canvas-text-mute)'}
+        fontSize="14" fontWeight="700" fontFamily="serif"
+        style={{ pointerEvents: 'none' }}>A &gt; B</text>
+      <text x={comp.x + w / 2} y={comp.y + h * 0.62} textAnchor="middle"
+        fill={asBool(comp.outputs[1].value) ? '#10b981' : 'var(--canvas-text-mute)'}
+        fontSize="14" fontWeight="700" fontFamily="serif"
+        style={{ pointerEvents: 'none' }}>A = B</text>
+      <text x={comp.x + w / 2} y={comp.y + h * 0.79} textAnchor="middle"
+        fill={asBool(comp.outputs[2].value) ? '#10b981' : 'var(--canvas-text-mute)'}
+        fontSize="14" fontWeight="700" fontFamily="serif"
+        style={{ pointerEvents: 'none' }}>A &lt; B</text>
+    </>
+  );
+}
+
+function BCDBody({ comp }) {
+  const { w, h } = getCompSize(comp);
+  return (
+    <>
+      <rect x={comp.x} y={comp.y} width={w} height={h} rx={4}
+        fill="var(--comp-fill)" stroke="var(--comp-stroke)" strokeWidth="1.8" />
+      <rect x={comp.x} y={comp.y} width={w} height={22} rx={4}
+        fill="var(--accent-bg)" style={{ pointerEvents: 'none' }} />
+      <text x={comp.x + w / 2} y={comp.y + 15} textAnchor="middle"
+        fill="var(--canvas-text)" fontSize="11" fontWeight="700"
+        fontFamily="'JetBrains Mono', monospace" style={{ pointerEvents: 'none' }}>
+        BCD→7-SEG
+      </text>
+      {/* Labels */}
+      {comp.inputs.map((pin) => {
+        const pos = getPinPos(comp, pin);
+        return (
+          <text key={pin.id} x={pos.x + 10} y={pos.y + 3}
+            fill="var(--canvas-text-dim)" fontSize="9" fontWeight="600"
+            fontFamily="'JetBrains Mono', monospace"
+            style={{ pointerEvents: 'none' }}>{pin.name}</text>
+        );
+      })}
+      {comp.outputs.map((pin) => {
+        const pos = getPinPos(comp, pin);
+        return (
+          <text key={pin.id} x={pos.x - 10} y={pos.y + 3}
+            textAnchor="end" fill="var(--canvas-text-dim)" fontSize="9" fontWeight="600"
+            fontFamily="'JetBrains Mono', monospace"
+            style={{ pointerEvents: 'none' }}>{pin.name}</text>
+        );
+      })}
+      {/* Mostra valor decimal atual */}
+      {(() => {
+        let v = 0;
+        for (let i = 0; i < 4; i++) if (asBool(comp.inputs[i].value)) v |= (1 << i);
+        return (
+          <text x={comp.x + w / 2} y={comp.y + h / 2 + 12} textAnchor="middle"
+            fill={v > 9 ? 'var(--danger)' : '#fde047'}
+            fontSize="32" fontWeight="700"
+            fontFamily="'JetBrains Mono', monospace"
+            style={{ pointerEvents: 'none' }}>
+            {v > 9 ? '?' : v}
+          </text>
+        );
+      })()}
+    </>
+  );
+}
+
+function SevenSegBody({ comp }) {
+  const { w, h } = getCompSize(comp);
+  // Pinos a..g em ordem (inputs[0..6])
+  const segs = comp.inputs.map(p => asBool(p.value));
+  // Geometria do display: 7 segmentos no centro
+  const dispX = comp.x + 18;
+  const dispY = comp.y + 24;
+  const dispW = 40;
+  const dispH = 70;
+  const t = 5; // espessura
+  const segOn = '#ef4444';
+  const segOff = 'rgba(239, 68, 68, 0.15)';
+  return (
+    <>
+      <rect x={comp.x} y={comp.y} width={w} height={h} rx={4}
+        fill="#1f2937" stroke="var(--comp-stroke)" strokeWidth="1.5" />
+      <rect x={dispX - 2} y={dispY - 2} width={dispW + 4} height={dispH + 4} rx={3}
+        fill="#0f172a" />
+      {/* Segmento a (topo) */}
+      <polygon points={`${dispX+t},${dispY} ${dispX+dispW-t},${dispY} ${dispX+dispW-t-3},${dispY+t} ${dispX+t+3},${dispY+t}`}
+        fill={segs[0] ? segOn : segOff} />
+      {/* b (direita-cima) */}
+      <polygon points={`${dispX+dispW},${dispY+t} ${dispX+dispW},${dispY+dispH/2-2} ${dispX+dispW-t},${dispY+dispH/2-3} ${dispX+dispW-t},${dispY+t+3}`}
+        fill={segs[1] ? segOn : segOff} />
+      {/* c (direita-baixo) */}
+      <polygon points={`${dispX+dispW},${dispY+dispH/2+2} ${dispX+dispW},${dispY+dispH-t} ${dispX+dispW-t},${dispY+dispH-t-3} ${dispX+dispW-t},${dispY+dispH/2+3}`}
+        fill={segs[2] ? segOn : segOff} />
+      {/* d (fundo) */}
+      <polygon points={`${dispX+t},${dispY+dispH} ${dispX+dispW-t},${dispY+dispH} ${dispX+dispW-t-3},${dispY+dispH-t} ${dispX+t+3},${dispY+dispH-t}`}
+        fill={segs[3] ? segOn : segOff} />
+      {/* e (esquerda-baixo) */}
+      <polygon points={`${dispX},${dispY+dispH/2+2} ${dispX},${dispY+dispH-t} ${dispX+t},${dispY+dispH-t-3} ${dispX+t},${dispY+dispH/2+3}`}
+        fill={segs[4] ? segOn : segOff} />
+      {/* f (esquerda-cima) */}
+      <polygon points={`${dispX},${dispY+t} ${dispX},${dispY+dispH/2-2} ${dispX+t},${dispY+dispH/2-3} ${dispX+t},${dispY+t+3}`}
+        fill={segs[5] ? segOn : segOff} />
+      {/* g (meio) */}
+      <polygon points={`${dispX+t},${dispY+dispH/2} ${dispX+t+3},${dispY+dispH/2-3} ${dispX+dispW-t-3},${dispY+dispH/2-3} ${dispX+dispW-t},${dispY+dispH/2} ${dispX+dispW-t-3},${dispY+dispH/2+3} ${dispX+t+3},${dispY+dispH/2+3}`}
+        fill={segs[6] ? segOn : segOff} />
+      {/* Pin labels */}
+      {comp.inputs.map((pin) => {
+        const pos = getPinPos(comp, pin);
+        return (
+          <text key={pin.id} x={pos.x + 10} y={pos.y + 3}
+            fill="rgba(255,255,255,0.6)" fontSize="8" fontWeight="600"
+            fontFamily="'JetBrains Mono', monospace"
+            style={{ pointerEvents: 'none' }}>{pin.name}</text>
+        );
+      })}
+      <text x={comp.x + w / 2} y={comp.y + h + 12} textAnchor="middle"
+        fill="var(--canvas-text-dim)" fontSize="9" fontWeight="600"
+        fontFamily="'JetBrains Mono', monospace" style={{ pointerEvents: 'none' }}>
+        7-SEGMENT
+      </text>
+    </>
+  );
+}
+
+function LedMatrixBody({ comp }) {
+  const { w, h } = getCompSize(comp);
+  // Header de 26px, depois matrix
+  const headerH = 26;
+  const matrixSize = h - headerH - 8;
+  const cellSize = matrixSize / 8;
+  const matrixX = comp.x + (w - matrixSize) / 2;
+  const matrixY = comp.y + headerH;
+  return (
+    <>
+      <rect x={comp.x} y={comp.y} width={w} height={h} rx={4}
+        fill="#0f172a" stroke="var(--comp-stroke)" strokeWidth="1.8" />
+      <rect x={comp.x} y={comp.y} width={w} height={headerH} rx={4}
+        fill="var(--accent-bg)" style={{ pointerEvents: 'none' }} />
+      <text x={comp.x + w / 2} y={comp.y + 17} textAnchor="middle"
+        fill="var(--canvas-text)" fontSize="11" fontWeight="700"
+        fontFamily="'JetBrains Mono', monospace" style={{ pointerEvents: 'none' }}>
+        LED MATRIX 8×8
+      </text>
+      {/* Grid */}
+      {Array.from({ length: 8 }, (_, y) =>
+        Array.from({ length: 8 }, (_, x) => {
+          const lit = comp.matrix && comp.matrix[y * 8 + x];
+          return (
+            <circle
+              key={`${x}-${y}`}
+              cx={matrixX + cellSize * x + cellSize / 2}
+              cy={matrixY + cellSize * y + cellSize / 2}
+              r={cellSize * 0.32}
+              fill={lit ? '#ef4444' : 'rgba(239,68,68,0.1)'}
+              stroke={lit ? '#fca5a5' : 'rgba(239,68,68,0.2)'}
+              strokeWidth="0.5"
+              style={{ pointerEvents: 'none', filter: lit ? 'drop-shadow(0 0 2px #ef4444)' : 'none' }}
+            />
+          );
+        })
+      )}
+      {/* Pin labels (dentro, esquerda) */}
+      {comp.inputs.map((pin) => {
+        const pos = getPinPos(comp, pin);
+        return (
+          <text key={pin.id} x={pos.x + 10} y={pos.y + 3}
+            fill="rgba(255,255,255,0.55)" fontSize="8" fontWeight="600"
+            fontFamily="'JetBrains Mono', monospace"
+            style={{ pointerEvents: 'none' }}>{pin.name}</text>
+        );
+      })}
+    </>
+  );
+}
+
+function ROMBody({ comp }) {
+  const { w, h } = getCompSize(comp);
+  // Endereço atual
+  let addr = 0;
+  for (let i = 0; i < 4; i++) {
+    if (asBool(comp.inputs[i].value)) addr |= (1 << i);
+  }
+  const oe = asBool(comp.inputs[4].value);
+  const byte = comp.data ? comp.data[addr] : 0;
+  return (
+    <>
+      <rect x={comp.x} y={comp.y} width={w} height={h} rx={4}
+        fill="var(--comp-fill)" stroke="var(--comp-stroke)" strokeWidth="1.8" />
+      <rect x={comp.x} y={comp.y} width={w} height={22} rx={4}
+        fill="var(--accent-bg)" style={{ pointerEvents: 'none' }} />
+      <text x={comp.x + w / 2} y={comp.y + 15} textAnchor="middle"
+        fill="var(--canvas-text)" fontSize="11" fontWeight="700"
+        fontFamily="'JetBrains Mono', monospace" style={{ pointerEvents: 'none' }}>
+        ROM 16×8
+      </text>
+      {/* Display do dado atual */}
+      <rect x={comp.x + w / 2 - 28} y={comp.y + h / 2 - 18}
+        width={56} height={36} rx={3}
+        fill="#0f172a" stroke="var(--comp-stroke)" strokeWidth="1"
+        style={{ pointerEvents: 'none' }}
+      />
+      <text x={comp.x + w / 2} y={comp.y + h / 2 - 4}
+        textAnchor="middle" fill="var(--canvas-text-mute)" fontSize="8"
+        fontFamily="'JetBrains Mono', monospace"
+        style={{ pointerEvents: 'none' }}>
+        {oe ? `addr ${addr.toString(16).toUpperCase()}` : 'OE=0'}
+      </text>
+      <text x={comp.x + w / 2} y={comp.y + h / 2 + 12}
+        textAnchor="middle" fill={oe ? '#fde047' : 'var(--canvas-text-mute)'}
+        fontSize="14" fontWeight="700"
+        fontFamily="'JetBrains Mono', monospace"
+        style={{ pointerEvents: 'none' }}>
+        {oe ? `0x${byte.toString(16).padStart(2, '0').toUpperCase()}` : 'HiZ'}
+      </text>
+      {/* Pin labels */}
+      {comp.inputs.map((pin) => {
+        const pos = getPinPos(comp, pin);
+        return (
+          <text key={pin.id} x={pos.x + 10} y={pos.y + 3}
+            fill="var(--canvas-text-dim)" fontSize="8" fontWeight="600"
+            fontFamily="'JetBrains Mono', monospace"
+            style={{ pointerEvents: 'none' }}>{pin.name}</text>
+        );
+      })}
+      {comp.outputs.map((pin) => {
+        const pos = getPinPos(comp, pin);
+        return (
+          <text key={pin.id} x={pos.x - 10} y={pos.y + 3}
+            textAnchor="end" fill="var(--canvas-text-dim)" fontSize="8" fontWeight="600"
+            fontFamily="'JetBrains Mono', monospace"
+            style={{ pointerEvents: 'none' }}>{pin.name}</text>
+        );
+      })}
     </>
   );
 }

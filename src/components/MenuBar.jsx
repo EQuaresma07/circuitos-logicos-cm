@@ -58,7 +58,6 @@ export default function MenuBar({
   onNew, onOpen, onSave, onSaveAs,
   onUndo, onRedo, canUndo, canRedo,
   onCut, onCopy, onPaste, onDelete,
-  onRotateCW, onRotateCCW,
   onSelectAll, onSelectNone,
   onZoomIn, onZoomOut, onPanCenter,
   onToggleSnapGrid, snapGrid,
@@ -67,6 +66,8 @@ export default function MenuBar({
   onToggleObjectPicker, objectPickerVisible,
   onPauseSimulation, simulationPaused,
   onAdvanceStep, onResetSimulation,
+  onToggleAnalyzer, analyzerVisible,
+  simulationFreq, onChangeFreq,
   onShowAbout,
   // Theme
   onToggleDarkMode, darkMode,
@@ -110,8 +111,8 @@ export default function MenuBar({
             <MenuItem label="Copy" onClick={wrap(onCopy)} disabled={!hasSelection} shortcut="Ctrl+C" />
             <MenuItem label="Paste" onClick={wrap(onPaste)} shortcut="Ctrl+V" />
             <MenuItem divider />
-            <MenuItem label="Rotate Clockwise" onClick={wrap(onRotateCW)} disabled={!hasSelection} shortcut="Ctrl+R" />
-            <MenuItem label="Rotate Counter-Clockwise" onClick={wrap(onRotateCCW)} disabled={!hasSelection} shortcut="Ctrl+Shift+R" />
+            <MenuItem label="Rotate Clockwise" disabled />
+            <MenuItem label="Rotate Counter-Clockwise" disabled />
             <MenuItem label="Delete" onClick={wrap(onDelete)} disabled={!hasSelection} shortcut="Del" />
             <MenuItem divider />
             <MenuItem label="Create Integrated Circuit..." disabled />
@@ -138,6 +139,7 @@ export default function MenuBar({
             <MenuItem label="Pan Tool" onClick={wrap(onPanTool)} checked={currentTool === 'pan'} />
             <MenuItem divider />
             <MenuItem label="Show Object Picker" onClick={wrap(onToggleObjectPicker)} checked={objectPickerVisible} />
+            <MenuItem label="Logic Analyzer" onClick={wrap(onToggleAnalyzer)} checked={analyzerVisible} />
           </Dropdown>
 
           <Dropdown title="Simulate" isOpen={openMenu === 'simulate'} onOpen={open('simulate')} onClose={closeMenu}>
@@ -198,6 +200,31 @@ export default function MenuBar({
           </button>
         )}
 
+        {/* Frequency slider */}
+        <div className="freq-control" title="Simulation frequency (Hz)">
+          <span className="freq-label">freq</span>
+          <input
+            type="range"
+            min="0.5"
+            max="60"
+            step="0.5"
+            value={simulationFreq}
+            onChange={(e) => onChangeFreq(parseFloat(e.target.value))}
+            className="freq-slider"
+          />
+          <span className="freq-value">{simulationFreq.toFixed(simulationFreq < 10 ? 1 : 0)} Hz</span>
+        </div>
+
+        <div className="toolbar-sep" />
+
+        <button
+          className={`tool-btn ${analyzerVisible ? 'active' : ''}`}
+          onClick={onToggleAnalyzer}
+          title="Logic Analyzer"
+        >
+          <span>📊 Analyzer</span>
+        </button>
+
         <div className="toolbar-sep" />
 
         <button className="tool-btn danger" onClick={onDelete} disabled={!hasSelection}>
@@ -207,7 +234,7 @@ export default function MenuBar({
         <div className="toolbar-spacer" />
 
         <span className="shortcut-hint">
-          <kbd>Ctrl+Z</kbd>/<kbd>Y</kbd> undo · <kbd>Ctrl+R</kbd> rotate · <kbd>Space</kbd> pause
+          <kbd>Ctrl+Z</kbd>/<kbd>Y</kbd> undo · <kbd>Space</kbd> pause
         </span>
       </div>
     </header>

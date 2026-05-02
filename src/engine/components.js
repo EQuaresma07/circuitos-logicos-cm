@@ -163,21 +163,29 @@ export class FourBitDigit extends Component {
 // ════════════════════════════════════════════════════════════
 
 export const GATE_DEFS = {
-  AND:    { inputs: 2, fn: (a, b) => a && b },
-  OR:     { inputs: 2, fn: (a, b) => a || b },
-  NOT:    { inputs: 1, fn: (a) => !a },
-  NAND:   { inputs: 2, fn: (a, b) => !(a && b) },
-  NOR:    { inputs: 2, fn: (a, b) => !(a || b) },
-  XOR:    { inputs: 2, fn: (a, b) => a !== b },
-  XNOR:   { inputs: 2, fn: (a, b) => a === b },
-  BUFFER: { inputs: 1, fn: (a) => !!a },
+  AND:    { inputs: 2, fn: (vals) => vals.every(v => v) },
+  OR:     { inputs: 2, fn: (vals) => vals.some(v => v) },
+  NOT:    { inputs: 1, fn: (vals) => !vals[0] },
+  NAND:   { inputs: 2, fn: (vals) => !vals.every(v => v) },
+  NOR:    { inputs: 2, fn: (vals) => !vals.some(v => v) },
+  XOR:    { inputs: 2, fn: (vals) => vals.reduce((a, b) => a !== b, false) },
+  XNOR:   { inputs: 2, fn: (vals) => !vals.reduce((a, b) => a !== b, false) },
+  BUFFER: { inputs: 1, fn: (vals) => !!vals[0] },
 };
 
+// Tipos que suportam expansão de pinos (2..8)
+const EXPANDABLE_GATES = new Set(['AND', 'OR', 'NAND', 'NOR']);
+
 export class Gate extends Component {
-  constructor(id, gateType) {
+  constructor(id, gateType, inputCount) {
     super(id, gateType, gateType);
     const def = GATE_DEFS[gateType];
-    for (let i = 0; i < def.inputs; i++) {
+    let count = def.inputs;
+    if (EXPANDABLE_GATES.has(gateType) && inputCount) {
+      count = Math.max(2, Math.min(8, inputCount));
+    }
+    this.inputCount = count;
+    for (let i = 0; i < count; i++) {
       this.inputs.push(new Pin(`${id}_in${i}`, String.fromCharCode(65 + i), 'input', this));
     }
     this.outputs.push(new Pin(`${id}_out`, 'Q', 'output', this));
@@ -185,7 +193,38 @@ export class Gate extends Component {
   }
   evaluate() {
     const vals = this.inputs.map(p => asBool(p.value));
-    this.outputs[0].value = this.gateFn(...vals);
+    this.outputs[0].value = this.gateFn(vals);
+  }
+  // Reconstrói pinos quando inputCount muda (preserva ID base do componente)
+  setInputCount(n) {
+    if (!EXPANDABLE_GATES.has(this.type)) return;
+    const next = Math.max(2, Math.min(8, n));
+    if (next === this.inputCount) return;
+    this.inputCount = next;
+    this.inputs = [];
+    for (let i = 0; i < next; i++) {
+      this.inputs.push(new Pin(`${this.id}_in${i}`, String.fromCharCode(65 + i), 'input', this));
+    }
+  }
+}
+
+// Schmitt Trigger Inverter — limpa sinais ruidosos com histerese.
+// Como estamos no domínio digital puro, comporta-se como um NOT
+// mas com flag que sinaliza "limpa transições" (no analógico real teria thresholds).
+export class SchmittTrigger extends Component {
+  constructor(id) {
+    super(id, 'SCHMITT', '⎍');
+    this.inputs.push(new Pin(`${id}_in`, 'A', 'input', this));
+    this.outputs.push(new Pin(`${id}_out`, 'Q', 'output', this));
+    this._lastOut = false;
+  }
+  evaluate() {
+    const a = asBool(this.inputs[0].value);
+    // Inversor com histerese — em digital, idêntico a NOT, mas mantemos lastOut
+    // para futura modelagem de hysteresis se necessário.
+    const out = !a;
+    this._lastOut = out;
+    this.outputs[0].value = out;
   }
 }
 
@@ -437,7 +476,225 @@ export class Register4 extends Component {
 }
 
 // ════════════════════════════════════════════════════════════
-//  Other
+//  Arithmetic & Decoding
+// ════════════════════════════════════════════════════════════
+
+// Comparador de magnitude 4-bit — Inputs A0..A3, B0..B3 → A>B, A=B, A<B
+export class Comparator4 extends Component {
+  constructor(id) {
+    super(id, 'CMP4', 'CMP');
+    for (let i = 0; i < 4; i++) {
+      this.inputs.push(new Pin(`${id}_in_a${i}`, `A${i}`, 'input', this));
+    }
+    for (let i = 0; i < 4; i++) {
+      this.inputs.push(new Pin(`${id}_in_b${i}`, `B${i}`, 'input', this));
+    }
+    this.outputs.push(new Pin(`${id}_out_gt`, 'A>B', 'output', this));
+    this.outputs.push(new Pin(`${id}_out_eq`, 'A=B', 'output', this));
+    this.outputs.push(new Pin(`${id}_out_lt`, 'A<B', 'output', this));
+  }
+  evaluate() {
+    let a = 0, b = 0;
+    for (let i = 0; i < 4; i++) {
+      if (asBool(this.inputs[i].value)) a |= (1 << i);
+      if (asBool(this.inputs[4 + i].value)) b |= (1 << i);
+    }
+    this.outputs[0].value = a > b;
+    this.outputs[1].value = a === b;
+    this.outputs[2].value = a < b;
+  }
+}
+
+// Tabela BCD → 7 segmentos (segmentos a,b,c,d,e,f,g)
+// Cada bit representa um segmento ativo (1 = aceso)
+const BCD_TO_7SEG = [
+  // a b c d e f g
+  [1,1,1,1,1,1,0], // 0
+  [0,1,1,0,0,0,0], // 1
+  [1,1,0,1,1,0,1], // 2
+  [1,1,1,1,0,0,1], // 3
+  [0,1,1,0,0,1,1], // 4
+  [1,0,1,1,0,1,1], // 5
+  [1,0,1,1,1,1,1], // 6
+  [1,1,1,0,0,0,0], // 7
+  [1,1,1,1,1,1,1], // 8
+  [1,1,1,1,0,1,1], // 9
+];
+
+// Decoder BCD para 7 segmentos
+// Inputs: D0..D3 (LSB→MSB), Outputs: a,b,c,d,e,f,g (todos LOW se valor > 9)
+export class BCDDecoder extends Component {
+  constructor(id) {
+    super(id, 'BCD7', 'BCD→7');
+    for (let i = 0; i < 4; i++) {
+      this.inputs.push(new Pin(`${id}_in_d${i}`, `D${i}`, 'input', this));
+    }
+    const segs = ['a','b','c','d','e','f','g'];
+    for (const s of segs) {
+      this.outputs.push(new Pin(`${id}_out_${s}`, s, 'output', this));
+    }
+  }
+  evaluate() {
+    let v = 0;
+    for (let i = 0; i < 4; i++) {
+      if (asBool(this.inputs[i].value)) v |= (1 << i);
+    }
+    if (v > 9) {
+      for (let s = 0; s < 7; s++) this.outputs[s].value = false;
+      return;
+    }
+    const row = BCD_TO_7SEG[v];
+    for (let s = 0; s < 7; s++) this.outputs[s].value = !!row[s];
+  }
+}
+
+// Display de 7 segmentos — recebe a,b,c,d,e,f,g (e dp opcional) e renderiza
+export class SevenSegmentDisplay extends Component {
+  constructor(id) {
+    super(id, 'SEG7', '7-SEG');
+    const segs = ['a','b','c','d','e','f','g'];
+    for (const s of segs) {
+      this.inputs.push(new Pin(`${id}_in_${s}`, s, 'input', this));
+    }
+    // sem outputs — é display puro
+  }
+  evaluate() {
+    // Display puro, valor lido a partir dos inputs no render
+  }
+  // Helper para o render saber quais segmentos estão ligados
+  get segments() {
+    return this.inputs.map(p => asBool(p.value));
+  }
+}
+
+// LED Matrix 8×8
+// Inputs: X0..X2 (3 bits), Y0..Y2 (3 bits), D (data)
+// Quando D=1, acende o LED na coordenada (X,Y). Estado persiste até reset.
+// Bordas de subida em D capturam o ponto.
+export class LedMatrix8x8 extends Component {
+  constructor(id) {
+    super(id, 'LEDMAT', 'MAT');
+    for (let i = 0; i < 3; i++) {
+      this.inputs.push(new Pin(`${id}_in_x${i}`, `X${i}`, 'input', this));
+    }
+    for (let i = 0; i < 3; i++) {
+      this.inputs.push(new Pin(`${id}_in_y${i}`, `Y${i}`, 'input', this));
+    }
+    this.inputs.push(new Pin(`${id}_in_d`, 'D', 'input', this));
+    this.inputs.push(new Pin(`${id}_in_clk`, 'CLK', 'input', this));
+    this.inputs.push(new Pin(`${id}_in_clr`, 'CLR', 'input', this));
+    // Estado: matriz 8×8 de bits (linha-major)
+    this.matrix = new Array(64).fill(false);
+    this._lastClk = false;
+  }
+  evaluate() {
+    const clr = asBool(this.inputs[8].value);
+    if (clr) {
+      this.matrix.fill(false);
+      return;
+    }
+    const clkNow = asBool(this.inputs[7].value);
+    const rising = clkNow && !this._lastClk;
+    this._lastClk = clkNow;
+    if (!rising) return;
+
+    let x = 0, y = 0;
+    for (let i = 0; i < 3; i++) {
+      if (asBool(this.inputs[i].value)) x |= (1 << i);
+      if (asBool(this.inputs[3 + i].value)) y |= (1 << i);
+    }
+    const d = asBool(this.inputs[6].value);
+    this.matrix[y * 8 + x] = d;
+  }
+}
+
+// ROM 16×8 — endereço de 4 bits → byte de 8 bits
+// Os dados podem ser carregados via .loadData(arr) onde arr é Array<number>
+export class ROM16x8 extends Component {
+  constructor(id) {
+    super(id, 'ROM', 'ROM');
+    for (let i = 0; i < 4; i++) {
+      this.inputs.push(new Pin(`${id}_in_a${i}`, `A${i}`, 'input', this));
+    }
+    this.inputs.push(new Pin(`${id}_in_oe`, 'OE', 'input', this));
+    for (let i = 0; i < 8; i++) {
+      this.outputs.push(new Pin(`${id}_out_d${i}`, `D${i}`, 'output', this));
+    }
+    // Padrão: 16 bytes zerados
+    this.data = new Array(16).fill(0);
+  }
+  loadData(arr) {
+    if (!Array.isArray(arr)) throw new Error('ROM data must be an array');
+    const next = new Array(16).fill(0);
+    for (let i = 0; i < Math.min(16, arr.length); i++) {
+      const v = Number(arr[i]) | 0;
+      next[i] = v & 0xff;
+    }
+    this.data = next;
+  }
+  evaluate() {
+    const oe = asBool(this.inputs[4].value);
+    if (!oe) {
+      // Output disabled — HIGH-Z
+      for (let i = 0; i < 8; i++) this.outputs[i].value = null;
+      return;
+    }
+    let addr = 0;
+    for (let i = 0; i < 4; i++) {
+      if (asBool(this.inputs[i].value)) addr |= (1 << i);
+    }
+    const byte = this.data[addr] & 0xff;
+    for (let i = 0; i < 8; i++) {
+      this.outputs[i].value = !!(byte & (1 << i));
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  Trace Recorder (Logic Analyzer)
+// ════════════════════════════════════════════════════════════
+
+// Buffer circular que armazena os últimos N estados de pinos selecionados.
+// Cada amostra é { t, values } onde values é um array alinhado aos pinos rastreados.
+export class TraceRecorder {
+  constructor(maxSamples = 50) {
+    this.maxSamples = maxSamples;
+    this.tracedPinIds = []; // até 4
+    this.samples = [];      // [{ t, values: [v0, v1, ...] }]
+  }
+
+  setTracedPins(pinIds) {
+    this.tracedPinIds = pinIds.slice(0, 4);
+    this.samples = []; // reseta histórico ao mudar pinos
+  }
+
+  // Pega snapshot do estado dos pinos rastreados
+  recordSample(components, t) {
+    if (this.tracedPinIds.length === 0) return;
+    const values = this.tracedPinIds.map(pinId => {
+      for (const c of components) {
+        for (const p of [...c.inputs, ...c.outputs]) {
+          if (p.id === pinId) return p.value;
+        }
+      }
+      return undefined;
+    });
+    // Só registra se diferente do último (compressão por mudança)
+    const last = this.samples[this.samples.length - 1];
+    if (last && JSON.stringify(last.values) === JSON.stringify(values)) {
+      // mesmo estado — atualiza tempo final
+      last.tEnd = t;
+      return;
+    }
+    this.samples.push({ t, tEnd: t, values });
+    if (this.samples.length > this.maxSamples) this.samples.shift();
+  }
+
+  clear() {
+    this.samples = [];
+  }
+}
+
 // ════════════════════════════════════════════════════════════
 
 // Label: texto livre no canvas. Sem pinos, sem lógica.
@@ -463,7 +720,7 @@ export function resetUid() { _idCounter = 0; }
 //  Factory: cria componente por type string
 // ════════════════════════════════════════════════════════════
 
-export function createComponent(type, id) {
+export function createComponent(type, id, opts) {
   const cid = id || uid();
   switch (type) {
     case 'INPUT':     return new InputSwitch(cid);
@@ -484,6 +741,12 @@ export function createComponent(type, id) {
     case 'DEMUX2':    return new Demux2(cid);
     case 'ADDER':     return new FullAdder(cid);
     case 'REG4':      return new Register4(cid);
+    case 'SCHMITT':   return new SchmittTrigger(cid);
+    case 'CMP4':      return new Comparator4(cid);
+    case 'BCD7':      return new BCDDecoder(cid);
+    case 'SEG7':      return new SevenSegmentDisplay(cid);
+    case 'LEDMAT':    return new LedMatrix8x8(cid);
+    case 'ROM':       return new ROM16x8(cid);
     case 'LABEL':     return new Label(cid);
     case 'AND':
     case 'OR':
@@ -492,7 +755,7 @@ export function createComponent(type, id) {
     case 'NOR':
     case 'XOR':
     case 'XNOR':
-    case 'BUFFER':    return new Gate(cid, type);
+    case 'BUFFER':    return new Gate(cid, type, opts && opts.inputCount);
     default:
       throw new Error(`Unknown component type: ${type}`);
   }
@@ -522,6 +785,12 @@ function typeOfInstance(c) {
   if (c instanceof Demux2) return 'DEMUX2';
   if (c instanceof FullAdder) return 'ADDER';
   if (c instanceof Register4) return 'REG4';
+  if (c instanceof SchmittTrigger) return 'SCHMITT';
+  if (c instanceof Comparator4) return 'CMP4';
+  if (c instanceof BCDDecoder) return 'BCD7';
+  if (c instanceof SevenSegmentDisplay) return 'SEG7';
+  if (c instanceof LedMatrix8x8) return 'LEDMAT';
+  if (c instanceof ROM16x8) return 'ROM';
   if (c instanceof Label) return 'LABEL';
   if (c instanceof Gate) return c.type;
   return 'UNKNOWN';
@@ -543,6 +812,11 @@ export function serializeCircuit(components, wires) {
       width: c.width,
       height: c.height,
       periodMs: c.periodMs,
+      inputCount: c.inputCount,
+      // ROM
+      romData: c instanceof ROM16x8 ? [...c.data] : undefined,
+      // LedMatrix
+      matrix: c instanceof LedMatrix8x8 ? [...c.matrix] : undefined,
     })),
     wires: wires.map(w => ({
       id: w.id,
@@ -558,8 +832,9 @@ export function deserializeCircuit(data) {
   if (!data || !data.components) throw new Error('Invalid circuit data');
   const idMap = new Map();
   const newComps = data.components.map(spec => {
-    const comp = createComponent(spec.type);
-    comp.id = spec.id; // preserva IDs originais
+    const opts = spec.inputCount ? { inputCount: spec.inputCount } : undefined;
+    const comp = createComponent(spec.type, undefined, opts);
+    comp.id = spec.id;
     if (spec.label) comp.label = spec.label;
     comp.x = spec.x || 0;
     comp.y = spec.y || 0;
@@ -569,6 +844,8 @@ export function deserializeCircuit(data) {
     if (spec.width !== undefined && comp instanceof Label) comp.width = spec.width;
     if (spec.height !== undefined && comp instanceof Label) comp.height = spec.height;
     if (spec.periodMs && comp instanceof Clock) comp.periodMs = spec.periodMs;
+    if (spec.romData && comp instanceof ROM16x8) comp.loadData(spec.romData);
+    if (spec.matrix && comp instanceof LedMatrix8x8) comp.matrix = [...spec.matrix];
     idMap.set(spec.id, comp);
     return comp;
   });
@@ -594,5 +871,7 @@ export function resetSimulationState(components) {
     if (c.q !== undefined) c.q = false;
     if (c._lastClk !== undefined) c._lastClk = false;
     if (c._flops) c._flops = [false, false, false, false];
+    // LedMatrix: zera todos os pixels
+    if (c instanceof LedMatrix8x8) c.matrix = new Array(64).fill(false);
   }
 }

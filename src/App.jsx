@@ -4,12 +4,16 @@ import Sidebar from './components/Sidebar.jsx';
 import Canvas, { getCompSize } from './components/Canvas.jsx';
 import StatusBar from './components/StatusBar.jsx';
 import AboutModal from './components/AboutModal.jsx';
+import LogicAnalyzer from './components/LogicAnalyzer.jsx';
 import {
   InputSwitch, OutputProbe, Clock, Gate, Wire,
   PushButton, HighConstant, LowConstant, PullUp, PullDown,
   FourBitDigit, TriStateBuffer,
   SRFlipFlop, DFlipFlop, JKFlipFlop, TFlipFlop,
   Mux2, Demux2, FullAdder, Register4,
+  SchmittTrigger, Comparator4, BCDDecoder, SevenSegmentDisplay,
+  LedMatrix8x8, ROM16x8,
+  TraceRecorder,
   Label as LabelComp,
   uid, resetUid, createComponent,
   serializeCircuit, deserializeCircuit, resetSimulationState,
@@ -83,6 +87,7 @@ export default function App() {
   // ── Simulação ──
   const [simulationPaused, setSimulationPaused] = useState(false);
   const [stepRequested, setStepRequested] = useState(false);
+  const [simulationFreq, setSimulationFreq] = useState(60); // Hz, padrão 60
 
   // ── Histórico (undo/redo) ──
   const historyRef = useRef({ past: [], future: [] });
@@ -92,11 +97,18 @@ export default function App() {
   const [currentFilename, setCurrentFilename] = useState('untitled.lcm');
   const fileInputRef = useRef(null);
 
+  // ── Logic Analyzer ──
+  const [analyzerVisible, setAnalyzerVisible] = useState(false);
+  const [traceSlots, setTraceSlots] = useState([null, null, null, null]); // pinIds
+  const [pendingTraceSlot, setPendingTraceSlot] = useState(null); // index 0..3 ou null
+  const traceRef = useRef(new TraceRecorder(50));
+
   const [, setTick] = useState(0);
   const svgRef = useRef(null);
   const clockRef = useRef(0);
   const lastClockTime = useRef(0);
   const clipboardRef = useRef(null);
+  const lastSimUpdate = useRef(0);
 
   // ── Dark mode toggle ──
   useEffect(() => {
@@ -108,24 +120,33 @@ export default function App() {
   useEffect(() => {
     let running = true;
     const start = performance.now();
+    const intervalMs = 1000 / Math.max(0.5, simulationFreq);
     function loop(now) {
       if (!running) return;
       const elapsed = now - start;
       if (!simulationPaused) {
-        clockRef.current = elapsed;
-        lastClockTime.current = elapsed;
+        // Throttle por simulationFreq
+        if (elapsed - lastSimUpdate.current >= intervalMs) {
+          clockRef.current = elapsed;
+          lastClockTime.current = elapsed;
+          lastSimUpdate.current = elapsed;
+        }
       } else if (stepRequested) {
         // Avança apenas um pequeno delta
-        clockRef.current = lastClockTime.current + 50;
+        clockRef.current = lastClockTime.current + intervalMs;
         lastClockTime.current = clockRef.current;
         setStepRequested(false);
+      }
+      // Recording (sempre, mesmo pausado faz sentido na timeline)
+      if (traceRef.current.tracedPinIds.length > 0) {
+        traceRef.current.recordSample(components, clockRef.current);
       }
       setTick(t => t + 1);
       requestAnimationFrame(loop);
     }
     requestAnimationFrame(loop);
     return () => { running = false; };
-  }, [simulationPaused, stepRequested]);
+  }, [simulationPaused, stepRequested, simulationFreq, components]);
 
   // ── Propagação a cada render ──
   useEffect(() => {
@@ -269,6 +290,18 @@ export default function App() {
 
   // ── Wiring ──
   const handlePinClick = useCallback((pinId) => {
+    // Modo: selecionando pino para o Logic Analyzer
+    if (pendingTraceSlot !== null) {
+      setTraceSlots(prev => {
+        const next = [...prev];
+        next[pendingTraceSlot] = pinId;
+        traceRef.current.setTracedPins(next.filter(Boolean));
+        return next;
+      });
+      setPendingTraceSlot(null);
+      return;
+    }
+
     if (!wiringFrom) { setWiringFrom(pinId); return; }
     if (wiringFrom === pinId) { setWiringFrom(null); return; }
     const fromPin = findPin(components, wiringFrom);
@@ -283,7 +316,7 @@ export default function App() {
       }
     }
     setWiringFrom(null);
-  }, [wiringFrom, components, wires, pushHistory]);
+  }, [wiringFrom, components, wires, pushHistory, pendingTraceSlot]);
 
   const toggleInput = useCallback((compId) => {
     setComponents(prev => {
@@ -347,22 +380,6 @@ export default function App() {
   }, [components]);
 
   const selectNone = useCallback(() => setSelectedIds(new Set()), []);
-
-  // ── Rotate ──
-  const rotateSelected = useCallback((delta) => {
-    if (selectedIds.size === 0) return;
-    pushHistory();
-    setComponents(prev => prev.map(c => {
-      if (selectedIds.has(c.id)) {
-        c.rotation = ((c.rotation || 0) + delta + 360) % 360;
-      }
-      return c;
-    }));
-    setTick(t => t + 1);
-  }, [selectedIds, pushHistory]);
-
-  const rotateCW = useCallback(() => rotateSelected(90), [rotateSelected]);
-  const rotateCCW = useCallback(() => rotateSelected(-90), [rotateSelected]);
 
   // ── Copy / Cut / Paste ──
   const copySelected = useCallback(() => {
@@ -538,6 +555,7 @@ export default function App() {
 
       if (e.key === 'Escape') {
         setWiringFrom(null); setSelectedIds(new Set()); setMarquee(null); setEditingLabelId(null);
+        setPendingTraceSlot(null);
         return;
       }
 
@@ -572,10 +590,6 @@ export default function App() {
           if (e.shiftKey) redo(); else undo();
           break;
         case 'y': e.preventDefault(); redo(); break;
-        case 'r':
-          e.preventDefault();
-          if (e.shiftKey) rotateCCW(); else rotateCW();
-          break;
         case 'n': e.preventDefault(); newCircuit(); break;
         case 'o': e.preventDefault(); openFile(); break;
         case 's':
@@ -592,7 +606,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [
     selectedIds, deleteSelected, selectAll, selectNone, copySelected, cutSelected, pasteClipboard,
-    undo, redo, rotateCW, rotateCCW, newCircuit, openFile, save, saveAs,
+    undo, redo, newCircuit, openFile, save, saveAs,
     zoomIn, zoomOut, panToCenter, togglePauseSimulation, advanceStep, simulationPaused,
   ]);
 
@@ -611,6 +625,32 @@ export default function App() {
   const canUndo = historyRef.current.past.length > 0;
   const canRedo = historyRef.current.future.length > 0;
 
+  // ── Labels para pinos rastreados ──
+  const tracePinLabels = traceSlots.map(pinId => {
+    if (!pinId) return '';
+    for (const c of components) {
+      for (const p of [...c.inputs, ...c.outputs]) {
+        if (p.id === pinId) {
+          return `${c.label || c.type}.${p.name}`;
+        }
+      }
+    }
+    return '?';
+  });
+
+  const startPickPin = useCallback((slotIdx) => {
+    setPendingTraceSlot(slotIdx);
+    setAnalyzerVisible(true);
+  }, []);
+
+  const clearTrace = useCallback(() => {
+    traceRef.current.clear();
+    setTraceSlots([null, null, null, null]);
+    traceRef.current.setTracedPins([]);
+  }, []);
+
+  const toggleAnalyzer = useCallback(() => setAnalyzerVisible(v => !v), []);
+
   return (
     <div className={`app-shell ${darkMode ? 'dark' : ''}`}>
       <MenuBar
@@ -628,8 +668,6 @@ export default function App() {
         onCopy={copySelected}
         onPaste={pasteClipboard}
         onDelete={deleteSelected}
-        onRotateCW={rotateCW}
-        onRotateCCW={rotateCCW}
         onSelectAll={selectAll}
         onSelectNone={selectNone}
         // View
@@ -651,6 +689,11 @@ export default function App() {
         simulationPaused={simulationPaused}
         onAdvanceStep={advanceStep}
         onResetSimulation={resetSimulation}
+        // Analyzer
+        onToggleAnalyzer={toggleAnalyzer}
+        analyzerVisible={analyzerVisible}
+        simulationFreq={simulationFreq}
+        onChangeFreq={setSimulationFreq}
         // Help
         onShowAbout={() => setShowAbout(true)}
         // Theme
@@ -708,6 +751,23 @@ export default function App() {
       />
 
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+
+      <LogicAnalyzer
+        visible={analyzerVisible}
+        onClose={toggleAnalyzer}
+        trace={traceRef.current}
+        pinLabels={tracePinLabels}
+        components={components}
+        onAddPin={startPickPin}
+        onClearTrace={clearTrace}
+      />
+
+      {/* Hint flutuante quando aguardando pick de pino */}
+      {pendingTraceSlot !== null && (
+        <div className="trace-pick-hint">
+          Click on a pin to trace it (slot {pendingTraceSlot + 1}) · ESC to cancel
+        </div>
+      )}
     </div>
   );
 }

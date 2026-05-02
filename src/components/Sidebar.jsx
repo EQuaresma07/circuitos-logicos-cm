@@ -7,6 +7,8 @@ import {
   LampSymbol, FourBitDigitSymbol, ClockSymbol,
   SRFFSymbol, DFFSymbol, JKFFSymbol, TFFSymbol,
   MuxSymbol, DemuxSymbol, AdderSymbol, RegisterSymbol,
+  SchmittSymbol, ComparatorSymbol, BCDSymbol, SevenSegSymbol,
+  LedMatrixSymbol, ROMSymbol,
   LabelSymbol,
 } from './GateSymbols.jsx';
 
@@ -74,6 +76,12 @@ export default function Sidebar() {
         <PaletteItem type="DIGIT4" label="4-Bit Digit">
           <FourBitDigitSymbol width={56} height={48} />
         </PaletteItem>
+        <PaletteItem type="SEG7" label="7-Segment">
+          <SevenSegSymbol width={50} height={50} />
+        </PaletteItem>
+        <PaletteItem type="LEDMAT" label="LED Matrix 8×8">
+          <LedMatrixSymbol width={50} height={50} />
+        </PaletteItem>
       </Panel>
 
       <Panel title="Logic Gates">
@@ -82,6 +90,9 @@ export default function Sidebar() {
         </PaletteItem>
         <PaletteItem type="NOT" label="NOT Gate">
           <NOTSymbol width={60} height={38} />
+        </PaletteItem>
+        <PaletteItem type="SCHMITT" label="Schmitt Trigger">
+          <SchmittSymbol width={60} height={38} />
         </PaletteItem>
         <PaletteItem type="AND" label="AND Gate">
           <ANDSymbol width={60} height={38} />
@@ -133,6 +144,21 @@ export default function Sidebar() {
         </PaletteItem>
         <PaletteItem type="REG4" label="Register 4-bit">
           <RegisterSymbol width={60} height={52} />
+        </PaletteItem>
+      </Panel>
+
+      <Panel title="Arithmetic & Decoding">
+        <PaletteItem type="CMP4" label="Comparator 4-bit">
+          <ComparatorSymbol width={56} height={46} />
+        </PaletteItem>
+        <PaletteItem type="BCD7" label="BCD → 7-Seg">
+          <BCDSymbol width={56} height={46} />
+        </PaletteItem>
+      </Panel>
+
+      <Panel title="Memory">
+        <PaletteItem type="ROM" label="ROM 16×8">
+          <ROMSymbol width={56} height={46} />
         </PaletteItem>
       </Panel>
 

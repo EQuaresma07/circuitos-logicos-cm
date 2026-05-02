@@ -425,6 +425,79 @@ export function RegisterSymbol({ width = 76, height = 64, color = S, fillColor =
 }
 
 // ──────────────────────────────────────────────
+//  V9: Schmitt, Comparator, BCD7, SEG7, LedMatrix, ROM
+// ──────────────────────────────────────────────
+
+export function SchmittSymbol({ width = 60, height = 40, color = S, fillColor = F }) {
+  return (
+    <svg width={width} height={height} viewBox="0 0 60 40">
+      <line x1="4" y1="20" x2="14" y2="20" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="50" y1="20" x2="56" y2="20" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M 14 8 L 46 20 L 14 32 Z" fill={fillColor} stroke={color} strokeWidth="1.6" strokeLinejoin="round" />
+      <circle cx="48" cy="20" r="2.5" fill={fillColor} stroke={color} strokeWidth="1.4" />
+      <path d="M 22 24 L 26 24 L 26 18 L 32 18 L 32 22 L 36 22" fill="none" stroke={color} strokeWidth="1.2" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function ComparatorSymbol({ width = 70, height = 56, color = S, fillColor = F }) {
+  return (
+    <svg width={width} height={height} viewBox="0 0 70 56">
+      <line x1="4" y1="14" x2="14" y2="14" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="4" y1="28" x2="14" y2="28" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="4" y1="42" x2="14" y2="42" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="56" y1="14" x2="64" y2="14" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="56" y1="28" x2="64" y2="28" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="56" y1="42" x2="64" y2="42" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <rect x="14" y="6" width="42" height="44" rx="3" fill={fillColor} stroke={color} strokeWidth="1.6" />
+      <text x="35" y="24" textAnchor="middle" fill={color} fontSize="10" fontWeight="700" fontFamily="'JetBrains Mono', monospace">CMP</text>
+      <text x="35" y="38" textAnchor="middle" fill={color} fontSize="11" fontWeight="700" fontFamily="serif">A:B</text>
+    </svg>
+  );
+}
+
+export function BCDSymbol({ width = 70, height = 56, color = S, fillColor = F }) {
+  return (
+    <svg width={width} height={height} viewBox="0 0 70 56">
+      <rect x="14" y="6" width="42" height="44" rx="3" fill={fillColor} stroke={color} strokeWidth="1.6" />
+      <text x="35" y="22" textAnchor="middle" fill={color} fontSize="9" fontWeight="700" fontFamily="'JetBrains Mono', monospace">BCD</text>
+      <text x="35" y="34" textAnchor="middle" fill={color} fontSize="9" fontWeight="700" fontFamily="'JetBrains Mono', monospace">7-SEG</text>
+    </svg>
+  );
+}
+
+export function SevenSegSymbol({ width = 60, height = 56, color = S, fillColor = F }) {
+  return (
+    <svg width={width} height={height} viewBox="0 0 60 56">
+      <rect x="6" y="4" width="48" height="48" rx="3" fill={fillColor} stroke={color} strokeWidth="1.6" />
+      <text x="30" y="38" textAnchor="middle" fill={color} fontSize="28" fontWeight="700" fontFamily="'JetBrains Mono', monospace">8</text>
+    </svg>
+  );
+}
+
+export function LedMatrixSymbol({ width = 60, height = 56, color = S, fillColor = F }) {
+  return (
+    <svg width={width} height={height} viewBox="0 0 60 56">
+      <rect x="6" y="4" width="48" height="48" rx="3" fill={fillColor} stroke={color} strokeWidth="1.6" />
+      {[0,1,2,3].map(y => [0,1,2,3].map(x => (
+        <circle key={`${x}-${y}`} cx={14 + x * 10} cy={12 + y * 10} r="1.6"
+          fill={(x + y) % 3 === 0 ? color : 'none'} stroke={color} strokeWidth="0.8" />
+      )))}
+    </svg>
+  );
+}
+
+export function ROMSymbol({ width = 70, height = 56, color = S, fillColor = F }) {
+  return (
+    <svg width={width} height={height} viewBox="0 0 70 56">
+      <rect x="14" y="6" width="42" height="44" rx="3" fill={fillColor} stroke={color} strokeWidth="1.6" />
+      <text x="35" y="24" textAnchor="middle" fill={color} fontSize="11" fontWeight="700" fontFamily="'JetBrains Mono', monospace">ROM</text>
+      <text x="35" y="38" textAnchor="middle" fill={color} fontSize="9" fontFamily="'JetBrains Mono', monospace">16×8</text>
+    </svg>
+  );
+}
+
+// ──────────────────────────────────────────────
 //  Other
 // ──────────────────────────────────────────────
 

@@ -716,6 +716,184 @@ body.dark .palette-item-icon svg {
 }
 
 /* ════════════════════════════════════════════════════════════
+   Frequency slider (toolbar)
+   ════════════════════════════════════════════════════════════ */
+
+.freq-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+}
+
+.freq-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-chrome-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.freq-slider {
+  width: 110px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border-chrome);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.freq-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid var(--bg-chrome);
+}
+
+.freq-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid var(--bg-chrome);
+}
+
+.freq-value {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent-hi);
+  min-width: 50px;
+  text-align: right;
+}
+
+/* ════════════════════════════════════════════════════════════
+   Logic Analyzer (timing diagram)
+   ════════════════════════════════════════════════════════════ */
+
+.logic-analyzer {
+  position: fixed;
+  bottom: 28px; /* acima da statusbar */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 880px;
+  max-width: 95vw;
+  background: var(--bg-chrome-hi);
+  border: 1px solid var(--border-chrome);
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
+  z-index: 500;
+  color: var(--text-chrome);
+  font-family: var(--font-sans);
+}
+
+.la-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-chrome-soft);
+  background: var(--bg-chrome);
+  border-radius: 8px 8px 0 0;
+}
+
+.la-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-chrome);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.la-info {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-chrome-mute);
+}
+
+.la-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.la-btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--border-chrome);
+  border-radius: 4px;
+  color: var(--text-chrome-dim);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all .12s;
+}
+
+.la-btn:hover {
+  background: var(--accent-bg);
+  color: var(--accent-hi);
+  border-color: var(--accent);
+}
+
+.la-body {
+  padding: 8px 0;
+  background: #0a0f1a;
+  overflow-x: auto;
+}
+
+.la-body svg {
+  display: block;
+  margin: 0 auto;
+}
+
+.la-footer {
+  padding: 6px 14px;
+  border-top: 1px solid var(--border-chrome-soft);
+  background: var(--bg-chrome);
+  font-size: 10px;
+  color: var(--text-chrome-mute);
+  font-family: var(--font-mono);
+}
+
+.la-time {
+  letter-spacing: 0.5px;
+}
+
+/* ════════════════════════════════════════════════════════════
+   Trace pick hint (overlay)
+   ════════════════════════════════════════════════════════════ */
+
+.trace-pick-hint {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(14, 165, 233, 0.4);
+  z-index: 1500;
+  pointer-events: none;
+  animation: trace-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes trace-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* ════════════════════════════════════════════════════════════
    Responsive
    ════════════════════════════════════════════════════════════ */
 
