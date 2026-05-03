@@ -48,9 +48,82 @@ function Panel({ title, children, defaultOpen = true }) {
   );
 }
 
-export default function Sidebar() {
+// ─────────────────────────────────────────────────────────────
+// Símbolos analógicos inline (SVG simples, mesmo estilo do canvas)
+// ─────────────────────────────────────────────────────────────
+
+function DCSourceSymbol({ width = 56, height = 38 }) {
   return (
-    <aside className="sidebar">
+    <svg width={width} height={height} viewBox="0 0 60 40">
+      <circle cx="30" cy="20" r="14" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <line x1="22" y1="16" x2="38" y2="16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      <line x1="25" y1="22" x2="35" y2="22" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      <line x1="22" y1="26" x2="38" y2="26" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+function ACSourceSymbol({ width = 56, height = 38 }) {
+  return (
+    <svg width={width} height={height} viewBox="0 0 60 40">
+      <circle cx="30" cy="20" r="14" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M20,20 Q24,12 28,20 T36,20 T40,20"
+        stroke="#f5d76e" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SquareWaveSymbol({ width = 56, height = 38 }) {
+  return (
+    <svg width={width} height={height} viewBox="0 0 60 40">
+      <circle cx="30" cy="20" r="14" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M20,26 L20,14 L30,14 L30,26 L40,26 L40,14"
+        stroke="#f5d76e" strokeWidth="1.8" fill="none" strokeLinejoin="miter" />
+    </svg>
+  );
+}
+
+function ResistorSymbol({ width = 60, height = 32 }) {
+  return (
+    <svg width={width} height={height} viewBox="0 0 60 32">
+      <line x1="2" y1="16" x2="14" y2="16" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M14,16 L18,9 L22,23 L26,9 L30,23 L34,9 L38,23 L42,9 L46,16"
+        stroke="currentColor" strokeWidth="1.7" fill="none" strokeLinejoin="round" />
+      <line x1="46" y1="16" x2="58" y2="16" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function VoltmeterSymbol({ width = 56, height = 38 }) {
+  return (
+    <svg width={width} height={height} viewBox="0 0 60 40">
+      <rect x="8" y="6" width="44" height="28" rx="3" fill="#0f172a" stroke="currentColor" strokeWidth="1.4" />
+      <rect x="12" y="10" width="36" height="16" rx="1.5" fill="#000" stroke="#1e293b" />
+      <text x="30" y="22" textAnchor="middle" fill="#4caf50" fontSize="10" fontWeight="700"
+        fontFamily="'JetBrains Mono', monospace">0.00</text>
+    </svg>
+  );
+}
+
+function ScopeSymbol({ width = 60, height = 38 }) {
+  return (
+    <svg width={width} height={height} viewBox="0 0 60 40">
+      <rect x="6" y="6" width="48" height="28" rx="3" fill="#0f172a" stroke="currentColor" strokeWidth="1.4" />
+      <rect x="10" y="10" width="40" height="20" fill="#000" stroke="#1e293b" />
+      <path d="M12,20 Q17,14 22,20 T32,20 T42,20 T48,20"
+        stroke="#22d3ee" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+      <line x1="10" y1="20" x2="50" y2="20" stroke="#334155" strokeWidth="0.5" strokeDasharray="2,2" />
+    </svg>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Conteúdos das abas
+// ─────────────────────────────────────────────────────────────
+
+function DigitalTab() {
+  return (
+    <>
       <Panel title="Input Controls">
         <PaletteItem type="INPUT" label="Toggle Switch">
           <SwitchSymbol width={56} height={38} />
@@ -173,6 +246,80 @@ export default function Sidebar() {
           <PullDownSymbol width={36} height={48} />
         </PaletteItem>
       </Panel>
+    </>
+  );
+}
+
+function AnalogTab() {
+  return (
+    <>
+      <Panel title="Fontes de Tensão">
+        <PaletteItem type="DC_SOURCE" label="Fonte DC">
+          <DCSourceSymbol width={56} height={38} />
+        </PaletteItem>
+        <PaletteItem type="AC_SOURCE" label="Fonte AC">
+          <ACSourceSymbol width={56} height={38} />
+        </PaletteItem>
+        <PaletteItem type="SQUARE_SOURCE" label="Onda Quadrada">
+          <SquareWaveSymbol width={56} height={38} />
+        </PaletteItem>
+      </Panel>
+
+      <Panel title="Componentes Lineares">
+        <PaletteItem type="RESISTOR" label="Resistor">
+          <ResistorSymbol width={60} height={32} />
+        </PaletteItem>
+      </Panel>
+
+      <Panel title="Instrumentos">
+        <PaletteItem type="VOLTMETER" label="Voltímetro">
+          <VoltmeterSymbol width={56} height={38} />
+        </PaletteItem>
+        <PaletteItem type="SCOPE" label="Osciloscópio">
+          <ScopeSymbol width={60} height={38} />
+        </PaletteItem>
+      </Panel>
+
+      <div className="sidebar-info-box">
+        <strong>💡 Dica</strong>
+        <span>
+          Conecte uma fonte a um resistor + voltímetro para medir tensões.
+          Pinos analógicos são <b style={{ color: '#f5a742' }}>laranja</b>;
+          digitais são azuis.
+        </span>
+      </div>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Sidebar com abas
+// ─────────────────────────────────────────────────────────────
+
+export default function Sidebar() {
+  const [activeTab, setActiveTab] = useState('digital');
+
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-tabs">
+        <button
+          className={`sidebar-tab ${activeTab === 'digital' ? 'active' : ''}`}
+          onClick={() => setActiveTab('digital')}
+        >
+          <span className="sidebar-tab-icon">⚡</span>
+          Digital
+        </button>
+        <button
+          className={`sidebar-tab ${activeTab === 'analog' ? 'active' : ''}`}
+          onClick={() => setActiveTab('analog')}
+        >
+          <span className="sidebar-tab-icon">∿</span>
+          Analógico
+        </button>
+      </div>
+      <div className="sidebar-content">
+        {activeTab === 'digital' ? <DigitalTab /> : <AnalogTab />}
+      </div>
     </aside>
   );
 }

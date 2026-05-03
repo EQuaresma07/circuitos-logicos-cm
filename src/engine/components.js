@@ -717,11 +717,24 @@ export function uid() { return `c${++_idCounter}`; }
 export function resetUid() { _idCounter = 0; }
 
 // ════════════════════════════════════════════════════════════
-//  Factory: cria componente por type string
 // ════════════════════════════════════════════════════════════
+//  Factory: cria componente por type string
+//  (apenas componentes digitais; analógicos são adicionados via factory.js)
+// ════════════════════════════════════════════════════════════
+
+// Registro de tipos extras (analógicos, etc) — populado em factory.js
+const _extraTypes = new Map();
+
+export function registerComponentType(type, factory) {
+  _extraTypes.set(type, factory);
+}
 
 export function createComponent(type, id, opts) {
   const cid = id || uid();
+  // Tipos extras (analógicos)
+  if (_extraTypes.has(type)) {
+    return _extraTypes.get(type)(cid, opts);
+  }
   switch (type) {
     case 'INPUT':     return new InputSwitch(cid);
     case 'BUTTON':    return new PushButton(cid);
@@ -793,6 +806,10 @@ function typeOfInstance(c) {
   if (c instanceof ROM16x8) return 'ROM';
   if (c instanceof Label) return 'LABEL';
   if (c instanceof Gate) return c.type;
+  // Analógicos: detectados por flag, sem instanceof (evita import circular)
+  if (c.isAnalog) {
+    if (c.type) return c.type;
+  }
   return 'UNKNOWN';
 }
 
@@ -817,6 +834,19 @@ export function serializeCircuit(components, wires) {
       romData: c instanceof ROM16x8 ? [...c.data] : undefined,
       // LedMatrix
       matrix: c instanceof LedMatrix8x8 ? [...c.matrix] : undefined,
+      // ─── Analógicos (detectados por type string para evitar imports) ───
+      voltageSet: c.type === 'DC_SOURCE' ? c.voltageSet : undefined,
+      amplitude:
+        (c.type === 'AC_SOURCE' || c.type === 'SQUARE_SOURCE') ? c.amplitude : undefined,
+      frequency:
+        (c.type === 'AC_SOURCE' || c.type === 'SQUARE_SOURCE') ? c.frequency : undefined,
+      phase: c.type === 'AC_SOURCE' ? c.phase : undefined,
+      offset: c.type === 'AC_SOURCE' ? c.offset : undefined,
+      lowLevel: c.type === 'SQUARE_SOURCE' ? c.lowLevel : undefined,
+      duty: c.type === 'SQUARE_SOURCE' ? c.duty : undefined,
+      resistance: c.type === 'RESISTOR' ? c.resistance : undefined,
+      timeSpan: c.type === 'SCOPE' ? c.timeSpan : undefined,
+      vRange: c.type === 'SCOPE' ? c.vRange : undefined,
     })),
     wires: wires.map(w => ({
       id: w.id,
@@ -846,6 +876,17 @@ export function deserializeCircuit(data) {
     if (spec.periodMs && comp instanceof Clock) comp.periodMs = spec.periodMs;
     if (spec.romData && comp instanceof ROM16x8) comp.loadData(spec.romData);
     if (spec.matrix && comp instanceof LedMatrix8x8) comp.matrix = [...spec.matrix];
+    // ─── Analógicos (detectados por type string) ───
+    if (spec.voltageSet !== undefined && comp.type === 'DC_SOURCE') comp.voltageSet = spec.voltageSet;
+    if (spec.amplitude !== undefined && (comp.type === 'AC_SOURCE' || comp.type === 'SQUARE_SOURCE')) comp.amplitude = spec.amplitude;
+    if (spec.frequency !== undefined && (comp.type === 'AC_SOURCE' || comp.type === 'SQUARE_SOURCE')) comp.frequency = spec.frequency;
+    if (spec.phase !== undefined && comp.type === 'AC_SOURCE') comp.phase = spec.phase;
+    if (spec.offset !== undefined && comp.type === 'AC_SOURCE') comp.offset = spec.offset;
+    if (spec.lowLevel !== undefined && comp.type === 'SQUARE_SOURCE') comp.lowLevel = spec.lowLevel;
+    if (spec.duty !== undefined && comp.type === 'SQUARE_SOURCE') comp.duty = spec.duty;
+    if (spec.resistance !== undefined && comp.type === 'RESISTOR') comp.resistance = spec.resistance;
+    if (spec.timeSpan !== undefined && comp.type === 'SCOPE') comp.timeSpan = spec.timeSpan;
+    if (spec.vRange !== undefined && comp.type === 'SCOPE') comp.vRange = spec.vRange;
     idMap.set(spec.id, comp);
     return comp;
   });
@@ -873,5 +914,7 @@ export function resetSimulationState(components) {
     if (c._flops) c._flops = [false, false, false, false];
     // LedMatrix: zera todos os pixels
     if (c instanceof LedMatrix8x8) c.matrix = new Array(64).fill(false);
+    // Osciloscópio: limpa buffer (detectado por type string)
+    if (c.type === 'SCOPE' && typeof c.clearBuffer === 'function') c.clearBuffer();
   }
 }

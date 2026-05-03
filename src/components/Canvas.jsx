@@ -11,6 +11,11 @@ import {
   asBool, EXPANDABLE_GATES,
 } from '../engine/components.js';
 import {
+  DCSource, ACSource, SquareWaveSource,
+  Resistor, Voltmeter, Oscilloscope,
+  isAnalogPin,
+} from '../engine/analog_components.js';
+import {
   ANDSymbol, ORSymbol, NOTSymbol, NANDSymbol, NORSymbol,
   XORSymbol, XNORSymbol, BufferSymbol,
 } from './GateSymbols.jsx';
@@ -47,6 +52,13 @@ export function getCompSize(comp) {
   if (comp instanceof LedMatrix8x8) return { w: 200, h: 200 };
   if (comp instanceof ROM16x8) return { w: 130, h: 168 };
   if (comp instanceof LabelComp) return { w: comp.width, h: comp.height };
+  // Analógicos
+  if (comp instanceof DCSource) return { w: 76, h: 60 };
+  if (comp instanceof ACSource) return { w: 76, h: 60 };
+  if (comp instanceof SquareWaveSource) return { w: 80, h: 60 };
+  if (comp instanceof Resistor) return { w: 80, h: 36 };
+  if (comp instanceof Voltmeter) return { w: 90, h: 60 };
+  if (comp instanceof Oscilloscope) return { w: 200, h: 130 };
   // Gate expansível: altura proporcional ao inputCount
   if (comp instanceof Gate && EXPANDABLE_GATES.has(comp.type) && comp.inputCount > 2) {
     const minH = GATE_BASE_H;
@@ -98,6 +110,28 @@ export function getPinPos(comp, pin) {
     return { x: comp.x, y: comp.y + step * (idx + 1) };
   }
 
+  // ─── Analógicos ───
+  // Fontes (DC, AC, Square): pinPos (+) topo-direita, pinNeg (-) baixo-direita
+  if (comp instanceof DCSource || comp instanceof ACSource || comp instanceof SquareWaveSource) {
+    if (pin === comp.pinPos) return { x: comp.x + w, y: comp.y + h * 0.30 };
+    if (pin === comp.pinNeg) return { x: comp.x + w, y: comp.y + h * 0.72 };
+  }
+  // Resistor: pinos nas pontas horizontais
+  if (comp instanceof Resistor) {
+    if (pin === comp.pinA) return { x: comp.x, y: comp.y + h / 2 };
+    if (pin === comp.pinB) return { x: comp.x + w, y: comp.y + h / 2 };
+  }
+  // Voltímetro: pinPos (+) à esquerda topo, pinNeg (-) à esquerda baixo
+  if (comp instanceof Voltmeter) {
+    if (pin === comp.pinPos) return { x: comp.x, y: comp.y + h * 0.30 };
+    if (pin === comp.pinNeg) return { x: comp.x, y: comp.y + h * 0.72 };
+  }
+  // Osciloscópio: CH1 (+) à esquerda topo, GND à esquerda baixo
+  if (comp instanceof Oscilloscope) {
+    if (pin === comp.pinPos) return { x: comp.x, y: comp.y + h * 0.30 };
+    if (pin === comp.pinNeg) return { x: comp.x, y: comp.y + h * 0.72 };
+  }
+
   // Default: inputs à esquerda, outputs à direita, espaçados verticalmente
   const idx = comp.inputs.indexOf(pin);
   if (idx >= 0) {
@@ -119,6 +153,7 @@ export function getPinPos(comp, pin) {
 function CompNode({
   comp, selected, onMouseDown, onPinClick, onToggle,
   onPress, onRelease, onLabelEdit, onClockConfig, onContextMenu, onGearClick,
+  onAnalogConfig,
 }) {
   const { w, h } = getCompSize(comp);
 
@@ -156,6 +191,12 @@ function CompNode({
         : comp instanceof ROM16x8 ? <ROMBody comp={comp} />
         : comp instanceof LabelComp ? <LabelBody comp={comp} onEdit={onLabelEdit} selected={selected} />
         : comp instanceof Gate ? <GateBody comp={comp} onGearClick={onGearClick} />
+        : comp instanceof DCSource ? <DCSourceBody comp={comp} onConfig={onAnalogConfig} />
+        : comp instanceof ACSource ? <ACSourceBody comp={comp} onConfig={onAnalogConfig} />
+        : comp instanceof SquareWaveSource ? <SquareWaveSourceBody comp={comp} onConfig={onAnalogConfig} />
+        : comp instanceof Resistor ? <ResistorBody comp={comp} onConfig={onAnalogConfig} />
+        : comp instanceof Voltmeter ? <VoltmeterBody comp={comp} />
+        : comp instanceof Oscilloscope ? <OscilloscopeBody comp={comp} />
         : null
       }
 
@@ -204,10 +245,27 @@ function PinDot({ pin, comp, side, onPinClick }) {
     comp.inputCount > 2 &&
     side === 'in';
 
+  // Pinos analógicos: cor depende da tensão (laranja para distinguir de digital)
+  const isAnalog = isAnalogPin(pin);
   let fill;
-  if (pin.value === null || pin.value === undefined) fill = '#a78bfa';
-  else if (pin.value) fill = 'var(--accent)';
-  else fill = 'var(--comp-fill)';
+  if (isAnalog) {
+    // Pino analógico: laranja, com brilho proporcional a |V|
+    const v = pin.voltage || 0;
+    const intensity = Math.min(1, Math.abs(v) / 5);
+    if (v > 0.1) {
+      fill = `rgb(${255}, ${Math.round(140 + 60 * (1 - intensity))}, 60)`;
+    } else if (v < -0.1) {
+      fill = `rgb(${Math.round(120 + 80 * intensity)}, 100, 200)`;
+    } else {
+      fill = '#94a3b8'; // 0V — cinza-azulado
+    }
+  } else if (pin.value === null || pin.value === undefined) {
+    fill = '#a78bfa';
+  } else if (pin.value) {
+    fill = 'var(--accent)';
+  } else {
+    fill = 'var(--comp-fill)';
+  }
 
   return (
     <g>
@@ -1167,6 +1225,307 @@ function ROMBody({ comp }) {
   );
 }
 
+// ════════════════════════════════════════════════════════════
+//  Componentes Analógicos — Bodies
+// ════════════════════════════════════════════════════════════
+
+// Engrenagem reutilizável (clicável)
+function ConfigGear({ x, y, onClick }) {
+  return (
+    <g
+      transform={`translate(${x}, ${y})`}
+      style={{ cursor: 'pointer' }}
+      onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <circle r={8} fill="#1e2228" stroke="#4a5568" strokeWidth="1" opacity="0.92" />
+      <g transform="scale(0.5)" fill="#94a3b8">
+        <circle cx="0" cy="0" r="4.5" fill="#94a3b8"/>
+        {[0,45,90,135,180,225,270,315].map((deg) => (
+          <rect key={deg} x="-2" y="-9.5" width="4" height="4" rx="0.8"
+            transform={`rotate(${deg})`} fill="#94a3b8" />
+        ))}
+        <circle cx="0" cy="0" r="3" fill="#1e2228"/>
+      </g>
+    </g>
+  );
+}
+
+// Texto de label inferior padrão
+function CompLabel({ x, y, children }) {
+  return (
+    <text x={x} y={y} textAnchor="middle"
+      fill="var(--canvas-text-dim)" fontSize="10" fontWeight="600"
+      fontFamily="'JetBrains Mono', monospace"
+      style={{ pointerEvents: 'none' }}>
+      {children}
+    </text>
+  );
+}
+
+// Fonte DC — círculo com símbolo de bateria + valor
+function DCSourceBody({ comp, onConfig }) {
+  const { w, h } = getCompSize(comp);
+  const cx = comp.x + w / 2;
+  const cy = comp.y + h / 2;
+  return (
+    <>
+      <circle cx={cx} cy={cy} r={Math.min(w, h) * 0.42}
+        fill="var(--comp-fill)" stroke="var(--comp-stroke)" strokeWidth="1.5" />
+      {/* Símbolo de bateria: traços longo (+) e curto (−) */}
+      <line x1={cx - 8} y1={cy - 4} x2={cx + 8} y2={cy - 4} stroke="var(--canvas-text)" strokeWidth="2" strokeLinecap="round"/>
+      <line x1={cx - 5} y1={cy + 3} x2={cx + 5} y2={cy + 3} stroke="var(--canvas-text)" strokeWidth="2" strokeLinecap="round"/>
+      <line x1={cx - 8} y1={cy + 8} x2={cx + 8} y2={cy + 8} stroke="var(--canvas-text)" strokeWidth="2" strokeLinecap="round"/>
+      <line x1={cx - 5} y1={cy + 13} x2={cx + 5} y2={cy + 13} stroke="var(--canvas-text)" strokeWidth="2" strokeLinecap="round"/>
+      {/* + e − ao lado dos pinos */}
+      <text x={comp.x + w - 10} y={comp.y + h * 0.30 + 3} textAnchor="end"
+        fill="#f5d76e" fontSize="10" fontWeight="700"
+        fontFamily="monospace" style={{ pointerEvents: 'none' }}>+</text>
+      <text x={comp.x + w - 10} y={comp.y + h * 0.72 + 3} textAnchor="end"
+        fill="#94a3b8" fontSize="10" fontWeight="700"
+        fontFamily="monospace" style={{ pointerEvents: 'none' }}>−</text>
+      <CompLabel x={cx} y={comp.y + h + 12}>{comp.voltageSet}V DC</CompLabel>
+      <ConfigGear x={comp.x + w - 4} y={comp.y - 4} onClick={() => onConfig?.(comp.id)} />
+    </>
+  );
+}
+
+// Fonte AC — círculo com onda senoidal
+function ACSourceBody({ comp, onConfig }) {
+  const { w, h } = getCompSize(comp);
+  const cx = comp.x + w / 2;
+  const cy = comp.y + h / 2;
+  const r = Math.min(w, h) * 0.42;
+  // Path da onda senoidal dentro do círculo
+  const wavePath = (() => {
+    const wWave = r * 1.2;
+    const aWave = r * 0.45;
+    let d = '';
+    const N = 24;
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      const x = cx - wWave / 2 + wWave * t;
+      const y = cy - aWave * Math.sin(2 * Math.PI * t);
+      d += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1) + ' ';
+    }
+    return d;
+  })();
+  return (
+    <>
+      <circle cx={cx} cy={cy} r={r}
+        fill="var(--comp-fill)" stroke="var(--comp-stroke)" strokeWidth="1.5" />
+      <path d={wavePath} stroke="#f5d76e" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+      <text x={comp.x + w - 10} y={comp.y + h * 0.30 + 3} textAnchor="end"
+        fill="#f5d76e" fontSize="10" fontWeight="700"
+        fontFamily="monospace" style={{ pointerEvents: 'none' }}>~</text>
+      <text x={comp.x + w - 10} y={comp.y + h * 0.72 + 3} textAnchor="end"
+        fill="#94a3b8" fontSize="10" fontWeight="700"
+        fontFamily="monospace" style={{ pointerEvents: 'none' }}>−</text>
+      <CompLabel x={cx} y={comp.y + h + 12}>
+        {comp.amplitude}V {comp.frequency}Hz
+      </CompLabel>
+      <ConfigGear x={comp.x + w - 4} y={comp.y - 4} onClick={() => onConfig?.(comp.id)} />
+    </>
+  );
+}
+
+// Fonte Onda Quadrada — círculo com símbolo de onda quadrada
+function SquareWaveSourceBody({ comp, onConfig }) {
+  const { w, h } = getCompSize(comp);
+  const cx = comp.x + w / 2;
+  const cy = comp.y + h / 2;
+  const r = Math.min(w, h) * 0.42;
+  // Path de onda quadrada
+  const squarePath = (() => {
+    const wW = r * 1.2;
+    const aW = r * 0.45;
+    const x0 = cx - wW / 2;
+    return `M${x0},${cy + aW} L${x0},${cy - aW} L${x0 + wW * 0.5},${cy - aW} L${x0 + wW * 0.5},${cy + aW} L${x0 + wW},${cy + aW} L${x0 + wW},${cy - aW}`;
+  })();
+  return (
+    <>
+      <circle cx={cx} cy={cy} r={r}
+        fill="var(--comp-fill)" stroke="var(--comp-stroke)" strokeWidth="1.5" />
+      <path d={squarePath} stroke="#f5d76e" strokeWidth="1.8" fill="none" strokeLinejoin="miter" />
+      <text x={comp.x + w - 10} y={comp.y + h * 0.30 + 3} textAnchor="end"
+        fill="#f5d76e" fontSize="10" fontWeight="700"
+        fontFamily="monospace" style={{ pointerEvents: 'none' }}>⊓</text>
+      <text x={comp.x + w - 10} y={comp.y + h * 0.72 + 3} textAnchor="end"
+        fill="#94a3b8" fontSize="10" fontWeight="700"
+        fontFamily="monospace" style={{ pointerEvents: 'none' }}>−</text>
+      <CompLabel x={cx} y={comp.y + h + 12}>
+        {comp.amplitude}V {comp.frequency}Hz
+      </CompLabel>
+      <ConfigGear x={comp.x + w - 4} y={comp.y - 4} onClick={() => onConfig?.(comp.id)} />
+    </>
+  );
+}
+
+// Resistor — retângulo com zigzag
+function ResistorBody({ comp, onConfig }) {
+  const { w, h } = getCompSize(comp);
+  const cy = comp.y + h / 2;
+  const innerX = comp.x + 12;
+  const innerW = w - 24;
+  // Zigzag estilizado (3 picos)
+  const path = (() => {
+    const N = 6;
+    const peakH = 7;
+    let d = `M${innerX},${cy} `;
+    for (let i = 1; i <= N; i++) {
+      const x = innerX + (innerW * i) / N;
+      const y = cy + (i % 2 === 0 ? -peakH : peakH);
+      d += `L${x.toFixed(1)},${y.toFixed(1)} `;
+    }
+    d += `L${innerX + innerW},${cy}`;
+    return d;
+  })();
+  // Formatar resistência (Ω, kΩ, MΩ)
+  const formatR = (r) => {
+    if (r >= 1e6) return `${(r / 1e6).toFixed(r % 1e6 === 0 ? 0 : 1)}MΩ`;
+    if (r >= 1e3) return `${(r / 1e3).toFixed(r % 1e3 === 0 ? 0 : 1)}kΩ`;
+    return `${r}Ω`;
+  };
+  return (
+    <>
+      {/* fios laterais que ligam até as pontas do zigzag */}
+      <line x1={comp.x} y1={cy} x2={innerX} y2={cy} stroke="var(--comp-stroke)" strokeWidth="1.5" />
+      <line x1={innerX + innerW} y1={cy} x2={comp.x + w} y2={cy} stroke="var(--comp-stroke)" strokeWidth="1.5" />
+      <path d={path} stroke="var(--comp-stroke)" strokeWidth="1.8" fill="none" strokeLinejoin="round" />
+      <CompLabel x={comp.x + w / 2} y={comp.y + h + 11}>{formatR(comp.resistance)}</CompLabel>
+      <ConfigGear x={comp.x + w - 4} y={comp.y - 4} onClick={() => onConfig?.(comp.id)} />
+    </>
+  );
+}
+
+// Voltímetro — display digital com leitura
+function VoltmeterBody({ comp }) {
+  const { w, h } = getCompSize(comp);
+  const cx = comp.x + w / 2;
+  const reading = comp.reading || 0;
+  const formatV = (v) => {
+    if (Math.abs(v) >= 100) return v.toFixed(0);
+    if (Math.abs(v) >= 10) return v.toFixed(1);
+    return v.toFixed(2);
+  };
+  return (
+    <>
+      <rect x={comp.x} y={comp.y} width={w} height={h} rx={4}
+        fill="#0f172a" stroke="var(--comp-stroke)" strokeWidth="1.5" />
+      <rect x={comp.x + 6} y={comp.y + 8} width={w - 12} height={h - 26} rx={2}
+        fill="#000" stroke="#1e293b" strokeWidth="1" />
+      <text x={cx} y={comp.y + h * 0.55} textAnchor="middle"
+        fill="#4caf50" fontSize="14" fontWeight="700"
+        fontFamily="'JetBrains Mono', monospace"
+        style={{ pointerEvents: 'none' }}>
+        {formatV(reading)}
+      </text>
+      <text x={cx} y={comp.y + h * 0.55 + 2} textAnchor="middle"
+        fill="#4caf50" fontSize="9" fontWeight="600"
+        fontFamily="'JetBrains Mono', monospace"
+        style={{ pointerEvents: 'none', opacity: 0 }}>
+        V
+      </text>
+      <text x={comp.x + 8} y={comp.y + h * 0.30 + 3} textAnchor="start"
+        fill="#f5d76e" fontSize="10" fontWeight="700"
+        fontFamily="monospace" style={{ pointerEvents: 'none' }}>+</text>
+      <text x={comp.x + 8} y={comp.y + h * 0.72 + 3} textAnchor="start"
+        fill="#94a3b8" fontSize="10" fontWeight="700"
+        fontFamily="monospace" style={{ pointerEvents: 'none' }}>−</text>
+      <CompLabel x={cx} y={comp.y + h + 11}>VOLT</CompLabel>
+    </>
+  );
+}
+
+// Osciloscópio — caixa com gráfico
+function OscilloscopeBody({ comp }) {
+  const { w, h } = getCompSize(comp);
+  const padL = 22, padR = 8, padT = 8, padB = 18;
+  const plotX = comp.x + padL;
+  const plotY = comp.y + padT;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+  const plotCenterY = plotY + plotH / 2;
+
+  // Calcula range vertical (auto-scale ou fixo)
+  let vMax = comp.vRange || 10;
+  if (comp.autoScale && comp.buffer.length > 0) {
+    let absMax = 0;
+    for (const s of comp.buffer) {
+      const a = Math.abs(s.v);
+      if (a > absMax) absMax = a;
+    }
+    vMax = Math.max(1, Math.ceil(absMax * 1.1));
+  }
+
+  // Constrói path da onda
+  const wavePath = (() => {
+    if (comp.buffer.length < 2) return '';
+    const tNow = comp.buffer[comp.buffer.length - 1].t;
+    const tStart = tNow - comp.timeSpan;
+    let d = '';
+    let started = false;
+    for (const s of comp.buffer) {
+      const tx = (s.t - tStart) / comp.timeSpan;
+      if (tx < 0 || tx > 1) continue;
+      const px = plotX + tx * plotW;
+      const py = plotCenterY - (s.v / vMax) * (plotH / 2);
+      d += (started ? 'L' : 'M') + px.toFixed(1) + ',' + py.toFixed(1) + ' ';
+      started = true;
+    }
+    return d;
+  })();
+
+  return (
+    <>
+      <rect x={comp.x} y={comp.y} width={w} height={h} rx={4}
+        fill="#0f172a" stroke="var(--comp-stroke)" strokeWidth="1.5" />
+      {/* Tela do osciloscópio (preta) */}
+      <rect x={plotX} y={plotY} width={plotW} height={plotH}
+        fill="#000" stroke="#1e293b" strokeWidth="1" />
+      {/* Grid horizontal */}
+      {[0.25, 0.5, 0.75].map(t => (
+        <line key={`h${t}`} x1={plotX} y1={plotY + plotH * t}
+          x2={plotX + plotW} y2={plotY + plotH * t}
+          stroke="#1e293b" strokeWidth="0.5" />
+      ))}
+      {/* Grid vertical */}
+      {[0.25, 0.5, 0.75].map(t => (
+        <line key={`v${t}`} x1={plotX + plotW * t} y1={plotY}
+          x2={plotX + plotW * t} y2={plotY + plotH}
+          stroke="#1e293b" strokeWidth="0.5" />
+      ))}
+      {/* Eixo zero */}
+      <line x1={plotX} y1={plotCenterY} x2={plotX + plotW} y2={plotCenterY}
+        stroke="#334155" strokeWidth="0.8" strokeDasharray="2,2" />
+      {/* Onda */}
+      {wavePath && (
+        <path d={wavePath} stroke="#22d3ee" strokeWidth="1.4" fill="none" strokeLinejoin="round" strokeLinecap="round" />
+      )}
+      {/* Escala */}
+      <text x={plotX - 4} y={plotY + 8} textAnchor="end"
+        fill="#64748b" fontSize="8" fontFamily="'JetBrains Mono', monospace"
+        style={{ pointerEvents: 'none' }}>
+        +{vMax}V
+      </text>
+      <text x={plotX - 4} y={plotY + plotH - 2} textAnchor="end"
+        fill="#64748b" fontSize="8" fontFamily="'JetBrains Mono', monospace"
+        style={{ pointerEvents: 'none' }}>
+        −{vMax}V
+      </text>
+      {/* Pinos */}
+      <text x={comp.x + 8} y={comp.y + h * 0.30 + 3} textAnchor="start"
+        fill="#22d3ee" fontSize="9" fontWeight="700"
+        fontFamily="monospace" style={{ pointerEvents: 'none' }}>CH</text>
+      <text x={comp.x + 8} y={comp.y + h * 0.72 + 3} textAnchor="start"
+        fill="#94a3b8" fontSize="9" fontWeight="700"
+        fontFamily="monospace" style={{ pointerEvents: 'none' }}>⏚</text>
+      <CompLabel x={comp.x + w / 2} y={comp.y + h + 11}>SCOPE</CompLabel>
+    </>
+  );
+}
+
+
 function LabelBody({ comp, onEdit, selected }) {
   const { w, h } = getCompSize(comp);
   return (
@@ -1327,7 +1686,7 @@ export default function Canvas({
   onLabelEdit, onLabelCommit, onLabelCancel,
   onDrop, svgRef, onClockConfig,
   onWireClick, onWireContextMenu,
-  onContextMenu, onGearClick, onWheelZoom,
+  onContextMenu, onGearClick, onWheelZoom, onAnalogConfig,
 }) {
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
@@ -1462,6 +1821,7 @@ export default function Canvas({
             onClockConfig={onClockConfig}
             onContextMenu={onContextMenu}
             onGearClick={onGearClick}
+            onAnalogConfig={onAnalogConfig}
           />
         ))}
 

@@ -7,6 +7,7 @@ import SimulationBar from './components/SimulationBar.jsx';
 import AboutModal from './components/AboutModal.jsx';
 import TruthTableModal from './components/TruthTableModal.jsx';
 import GateConfigPanel from './components/GateConfigPanel.jsx';
+import AnalogConfigPanel from './components/AnalogConfigPanel.jsx';
 import LogicAnalyzer from './components/LogicAnalyzer.jsx';
 import ClockConfigPanel from './components/ClockConfigPanel.jsx';
 import ContextMenu from './components/ContextMenu.jsx';
@@ -23,7 +24,7 @@ import {
   uid, resetUid, createComponent,
   serializeCircuit, deserializeCircuit, resetSimulationState,
 } from './engine/components.js';
-import { propagate } from './engine/propagation.js';
+import { tick } from './engine/tick.js';
 import { buildHalfAdder, buildSRLatch } from './engine/presets.js';
 
 const GRID = 20;
@@ -86,6 +87,7 @@ export default function App() {
   const [showAbout, setShowAbout] = useState(false);
   const [showTruthTable, setShowTruthTable] = useState(false);
   const [gateConfigId, setGateConfigId] = useState(null);
+  const [analogConfigId, setAnalogConfigId] = useState(null);
   const [clockConfigId, setClockConfigId] = useState(null); // id do clock sendo configurado
   const [currentTool, setCurrentTool] = useState('select'); // 'select' | 'pan'
   const [objectPickerVisible, setObjectPickerVisible] = useState(true);
@@ -168,7 +170,7 @@ export default function App() {
 
   // ── Propagação a cada render ──
   useEffect(() => {
-    propagate(components, wires, clockRef.current);
+    tick(components, wires, clockRef.current);
   });
 
   // ── Snapshot pro histórico ──
@@ -370,6 +372,15 @@ export default function App() {
 
   const handleGearClick = useCallback((compId) => {
     setGateConfigId(prev => prev === compId ? null : compId);
+  }, []);
+
+  const handleAnalogConfig = useCallback((compId) => {
+    setAnalogConfigId(prev => prev === compId ? null : compId);
+  }, []);
+
+  const handleAnalogChange = useCallback(() => {
+    // Força re-render quando parâmetros mudam (já feito pelo loop, mas garantimos)
+    setComponents(prev => [...prev]);
   }, []);
 
   const handleGateInputCount = useCallback((compId, count) => {
@@ -910,6 +921,7 @@ export default function App() {
           onContextMenu={handleContextMenu}
           onGearClick={handleGearClick}
           onWheelZoom={handleWheelZoom}
+          onAnalogConfig={handleAnalogConfig}
         />
       </div>
       <SimulationBar
@@ -975,6 +987,20 @@ export default function App() {
             svgRef={svgRef}
             onCommit={(count) => handleGateInputCount(gateConfigId, count)}
             onClose={() => setGateConfigId(null)}
+          />
+        );
+      })()}
+
+      {/* Painel de configuração analógica (fontes, resistor) */}
+      {analogConfigId && (() => {
+        const analogComp = components.find(c => c.id === analogConfigId);
+        if (!analogComp) return null;
+        return (
+          <AnalogConfigPanel
+            comp={analogComp}
+            svgRef={svgRef}
+            onChange={handleAnalogChange}
+            onClose={() => setAnalogConfigId(null)}
           />
         );
       })()}
